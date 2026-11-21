@@ -355,3 +355,140 @@ h3 {
   opacity: 0.8;
   text-align: center;
 }
+
+/* ---------- Round 2 ---------- */
+#territory,
+#scent {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+#territory.danger {
+  background: rgba(150, 20, 20, 0.8);
+  font-weight: bold;
+}
+
+#scent {
+  color: #ffd86b;
+}
+
+/* Herb pouch (R18) */
+#pouch {
+  position: absolute;
+  right: 10px;
+  top: 56px;
+  width: 240px;
+  padding: 8px 14px 12px;
+  border: 2px solid #7ab850;
+  border-radius: 8px;
+  background: rgba(20, 32, 18, 0.92);
+}
+
+#pouch h3 {
+  margin: 0 0 4px;
+}
+
+#pouch p {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+#pouch-list button {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
+  font-size: 14px;
+}
+
+#pouch-list button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Map (R15) */
+#map {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid #e9c46a;
+  border-radius: 8px;
+  background: rgba(20, 32, 18, 0.95);
+}
+
+#map-canvas {
+  width: 360px;
+  height: 360px;
+  max-width: 60vw;
+  max-height: 60vw;
+  border-radius: 4px;
+}
+
+#map-legend {
+  min-width: 130px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+#map-legend li {
+  margin-bottom: 6px;
+}
+
+#map-legend .key {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border: 1px solid #000;
+}
+
+/* Mentor choice (R19), styled like the role choice */
+#mentor-choice {
+  position: absolute;
+  inset: 12% 8%;
+  padding: 16px 24px;
+  border: 2px solid #e9c46a;
+  border-radius: 8px;
+  background: rgba(20, 32, 18, 0.95);
+  text-align: center;
+}
+
+#mentor-choice h2 {
+  margin: 0 0 12px;
+  color: #e9c46a;
+}
+
+#mentor-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#mentor-options button {
+  flex: 1 1 180px;
+  max-width: 240px;
+  padding: 12px;
+}
+
+#mentor-options em {
+  display: block;
+  color: #e9c46a;
+  font-size: 13px;
+}
+
+#mentor-options small {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.85;
+}
