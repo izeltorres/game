@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Forest Clans - tests</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: monospace; background: #111; color: #eee; margin: 10px; align-items: flex-start; }
+    #wrap { width: 960px; }
+    .pass { color: #7ddc6a; }
+    .fail { color: #ff6b5b; }
+  </style>
+</head>
+<body>
+  <!-- Open this file in a browser. It loads the game below and plays through it automatically. -->
+  <h2 id="summary">Running tests...</h2>
+  <ul id="results"></ul>
+
+  <!-- Same game markup as index.html -->
+  <div id="wrap">
+    <canvas id="game" width="960" height="540"></canvas>
+    <div id="hud" class="hidden">
+      <div id="cat-info"></div>
+      <div id="task"></div>
+      <button id="new-cat">New cat</button>
+    </div>
+    <div id="message" class="hidden"></div>
+    <div id="menu">
+      <input id="name-input">
+      <div id="fur-options"></div>
+      <div id="eye-options"></div>
+      <div id="pattern-options"></div>
+      <div id="clan-options"></div>
+      <canvas id="preview" width="260" height="200"></canvas>
+      <p id="preview-name"></p>
+      <button id="start-btn">Start</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+
+  <script>
+    const results = [];
+
+    function check(name, ok) {
+      results.push({ name, ok: !!ok });
+    }
+
+    window.addEventListener("load", () => {
+      const doc = document;
+      const g = (code) => (0, eval)(code); // read or run code from script.js
+
+      // Run the game logic for some seconds (60 steps per second)
+      function step(seconds) {
+        for (let i = 0; i < Math.round(seconds * 60); i++) g("update(1/60)");
+      }
+      function pressE() {
+        g("pressed.KeyE = true");
+        step(1 / 60);
+      }
+      function releaseAll() {
+        g("for (const k in keys) keys[k] = false");
+      }
+
+      try {
+        // ---------- Menu ----------
+        check("menu shows 6 fur colours", doc.querySelectorAll("#fur-options button").length === 6);
+        check("menu shows 4 eye colours", doc.querySelectorAll("#eye-options button").length === 4);
+        check("menu shows 3 patterns", doc.querySelectorAll("#pattern-options button").length === 3);
+        check("menu shows 4 clans", doc.querySelectorAll("#clan-options button").length === 4);
+        check("name is cleaned", g("cleanName('fIRE 9')") === "Fire" && g("cleanName('')") === "Fire");
+
+        // Choose Black, Tabby, WindClan, name "storm"
+        doc.querySelector("#fur-options button[title='Black']").click();
+        doc.querySelectorAll("#pattern-options button")[1].click();
+        doc.querySelectorAll("#clan-options button")[2].click();
+        doc.getElementById("name-input").value = "storm";
+        doc.getElementById("start-btn").click();
+
+        check("game starts", g("playing") === true);
+        check("menu hidden after start", doc.getElementById("menu").classList.contains("hidden"));
+        check("starts as a kit called Stormkit", g("fullName()") === "Stormkit" && g("STAGES[stage].rank") === "Kit");
+        check("chosen look is used", g("look.fur") === "#2e2b2b" && g("look.pattern") === "Tabby");
+        check("chosen clan is used", g("clanName") === "WindClan");
+
+        // ---------- Moving ----------
+        let x0 = g("player.x");
+        g("keys.KeyD = true"); step(1); releaseAll();
+        const windDistance = g("player.x") - x0;
+        check("cat walks right", windDistance > 250);
+
+        g("player.x = 200; keys.Space = true"); step(0.1); releaseAll();
+        check("cat can jump", g("player.y") < g("GROUND"));
+        step(1);
+        check("cat lands again", g("player.y") === g("GROUND") && g("player.onGround"));
+
+        // ---------- Task 1: squirrel ----------
+        g("player.x = 600; player.facing = 1; Object.assign(squirrel, {x: 750, state: 'idle', timer: 5})");
+        step(0.1);
+        check("squirrel runs if you walk up loudly", g("squirrel.state") === "fleeing");
+
+        g("player.x = 600; player.facing = 1; Object.assign(squirrel, {x: 680, state: 'idle', timer: 5}); keys.ShiftLeft = true");
+        step(0.1);
+        check("squirrel stays if you stalk", g("squirrel.state") === "idle");
+        pressE(); releaseAll();
+        check("pounce catches squirrel -> level 2", g("stage") === 1);
+        check("cat grew", g("STAGES[stage].size") > g("STAGES[0].size"));
+
+        // ---------- Task 2: fishing ----------
+        g("player.x = 1000"); pressE();
+        check("can't fish away from the river", g("fishing.active") === false);
+        g("player.x = RIVER_START + 20"); pressE();
+        check("fishing starts at the river", g("fishing.active") === true);
+        g("fishing.marker = fishing.zone > 0.5 ? 0 : 1; fishing.dir = 0"); pressE();
+        check("missing the zone does not count", g("fishing.catches") === 0);
+        for (let i = 0; i < 3; i++) {
+          g("fishing.dir = 0; fishing.marker = fishing.zone");
+          pressE();
+        }
+        check("3 catches -> apprentice", g("stage") === 2 && g("fullName()") === "Stormpaw" && !g("fishing.active"));
+
+        // ---------- Task 3: rogue ----------
+        g("player.x = ROGUE_HOME - 300; player.facing = 1"); step(0.1);
+        check("rogue starts a fight", g("rogue.state") === "fighting");
+
+        // Stand still and get hit until beaten: it should reset, not end the game
+        g("player.hp = 10"); step(4);
+        check("losing resets the fight", g("player.hp") === 100 && g("rogue.state") === "waiting" && g("stage") === 2);
+
+        g("player.x = ROGUE_HOME - 300"); step(0.1);
+        let swipes = 0;
+        while (g("stage") === 2 && swipes < 40) {
+          g("rogue.x = player.x + 50; player.facing = 1; player.hp = 100");
+          pressE(); step(0.45);
+          swipes++;
+        }
+        check("beating the rogue -> warrior", g("stage") === 3 && g("STAGES[stage].rank") === "Warrior");
+        check("warrior gets a warrior name", g("WARRIOR_SUFFIXES.includes(warriorSuffix)") && g("fullName()").startsWith("Storm"));
+        step(5);
+        check("rogue runs away", g("rogue.state") === "gone");
+
+        // ---------- Clan perks ----------
+        g("clanName = 'ThunderClan'; player.x = 200"); g("keys.KeyD = true"); step(1); releaseAll();
+        check("WindClan runs faster than ThunderClan", windDistance > g("player.x") - 200 + 50);
+        check("RiverClan has a bigger fishing zone", g("CLANS.RiverClan.fishZone > CLANS.ThunderClan.fishZone"));
+
+        // ---------- Drawing ----------
+        let drawOk = true;
+        try {
+          for (const s of [0, 1, 2, 3]) { g(`stage = ${s}; draw()`); }
+          g("fishing.active = true; draw(); fishing.active = false");
+        } catch (e) { drawOk = false; }
+        check("every level draws without errors", drawOk);
+
+        // ---------- New cat ----------
+        doc.getElementById("new-cat").click();
+        check("New cat goes back to the menu", !g("playing") && !doc.getElementById("menu").classList.contains("hidden"));
+
+        // Leave the game on screen in the middle of a level so it can be looked at
+        doc.getElementById("start-btn").click();
+        g("stage = 2; player.x = ROGUE_HOME - 200; rogue.state = 'fighting'; rogue.x = player.x + 70; player.facing = 1");
+        step(0.2);
+      } catch (e) {
+        check("tests ran without crashing: " + e.message, false);
+      }
+
+      const failed = results.filter((r) => !r.ok).length;
+      document.getElementById("summary").textContent =
+        failed === 0 ? `ALL ${results.length} TESTS PASSED` : `${failed} OF ${results.length} TESTS FAILED`;
+      document.getElementById("summary").className = failed === 0 ? "pass" : "fail";
+      document.getElementById("results").innerHTML = results
+        .map((r) => `<li class="${r.ok ? "pass" : "fail"}">${r.ok ? "PASS" : "FAIL"} - ${r.name}</li>`)
+        .join("");
+    });
+  </script>
+</body>
+</html>

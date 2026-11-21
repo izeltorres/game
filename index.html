@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forest Clans</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="game" width="960" height="540"></canvas>
+
+    <!-- Info shown while playing -->
+    <div id="hud" class="hidden">
+      <div id="cat-info"></div>
+      <div id="task"></div>
+      <button id="new-cat">New cat</button>
+    </div>
+
+    <!-- Short pop-up messages -->
+    <div id="message" class="hidden"></div>
+
+    <!-- Start screen: make your cat -->
+    <div id="menu">
+      <h1>Forest Clans</h1>
+      <p class="subtitle">Start as a kit and grow into a warrior of your clan.</p>
+      <div class="menu-body">
+        <div class="menu-options">
+          <label class="name-label">Name
+            <input id="name-input" maxlength="10" placeholder="Fire" autocomplete="off">
+          </label>
+          <p class="hint">Your name grows with you: Firekit, Firepaw, then a warrior name.</p>
+
+          <h3>Fur</h3>
+          <div id="fur-options" class="swatches"></div>
+
+          <h3>Eyes</h3>
+          <div id="eye-options" class="swatches"></div>
+
+          <h3>Pattern</h3>
+          <div id="pattern-options" class="choices"></div>
+
+          <h3>Clan</h3>
+          <div id="clan-options" class="clans"></div>
+        </div>
+
+        <div class="menu-preview">
+          <canvas id="preview" width="260" height="200"></canvas>
+          <p id="preview-name"></p>
+          <button id="start-btn">Start</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p id="controls">
+    Move: A/D or &larr;/&rarr; &middot; Jump: W, &uarr; or Space &middot;
+    Stalk: Shift, S or &darr; &middot; Action: E &middot; Stop fishing: Esc
+  </p>
+
+  <script src="script.js"></script>
+</body>
+</html>
