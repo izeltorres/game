@@ -1,6 +1,6 @@
-# Forest Clans
+# Cat Clans
 
-A small 3D browser game inspired by the Warriors books. You make your own cat, join a clan, and grow
+A small 3D browser game, Cat Clans, inspired by the Warriors books. You make your own cat, join a clan, and grow
 from a kit into an apprentice with a mentor, then choose to become a warrior, deputy or medicine cat.
 Hunt and fight well enough and you can become leader of your clan. Watch out for other clans'
 patrols on their land.
@@ -9,7 +9,8 @@ patrols on their land.
 
 1. Open `index.html` in a web browser. You don't need to install anything, but you need an internet
    connection the first time so the free Three.js 3D library can load.
-2. Make your cat: type a name, then pick its fur colour, eye colour, pattern and clan.
+2. Make your cat: type a name, then pick its fur colour, eye colour, pattern (Solid, Tabby, Patches, Tuxedo,
+   Calico, Spotted or Colorpoint) and clan.
 3. Press **Start**.
 
 The camera sits low and close behind your cat and swings round smoothly when you turn.
@@ -30,7 +31,8 @@ The camera sits low and close behind your cat and swings round smoothly when you
 | C | Dodge (hold A or D to roll to that side) |
 | F | Pounce attack (apprentices and older) |
 | R | Bite (warriors and older, or apprentices with the fighter mentor) |
-| Esc | Stop fishing |
+| Esc | Main menu: Resume, Restart (same cat, start over as a kit), New cat. While fishing, Esc stops fishing |
+| G | Drop the prey you are carrying (at the fresh-kill pile it goes onto the pile; pick it up again with E) |
 | Walk into a tree | Climb it |
 | 1 / 2 / 3 | Leader only, with the pouch closed: order clanmates to Follow, Hunt or Guard |
 
@@ -45,11 +47,12 @@ The world is split into 4 clan territories. Press **M** to see the map.
 | WindClan | north-east | Open moor with heather and gorse |
 | RiverClan | south-east | Riverside willows and reeds |
 
-- Your clan's cats are friendly. On another clan's land, their patrols will attack you, and the HUD
-  turns red. Leave their land and they let you go.
-- Your camp has a nursery, an apprentices' den, a warriors' den, a medicine den, the leader's den
-  under the Highrock, and a fresh-kill pile.
-  - Press E at **your own** den to sleep: you heal fully and wake up the next morning.
+- Your clan's cats are friendly. On another clan's land, their patrols and the cats living in their camp
+  will attack you, and the HUD turns red. Leave their land and they let you go.
+- Your camp has five huts you can walk into through their doorways (the nursery, the apprentices' den,
+  the warriors' den, the medicine den and the leader's den in front of the Highrock), and a fresh-kill pile.
+  Trees, rocks and hut walls are solid.
+  - Press E inside **your own** den to sleep: you heal fully and wake up the next morning.
   - Press E at the fresh-kill pile to drop off prey you carry, or to eat if you are hungry.
 
 ### Health, food, herbs and time
@@ -116,7 +119,7 @@ The world is split into 4 clan territories. Press **M** to see the map.
 - `render3d.js`: the 3D drawing (Three.js).
 - `script.js`: keyboard, menu, HUD, map, herb pouch and main loop.
 - `tests.html`: automatic tests. Open it in a browser; it plays through the game and lists PASS/FAIL
-  for each check, each named with its requirement ID (R1–R20).
+  for each check, each named with its requirement ID (R1–R29).
 - `problem.md`, `spec.md`: what the game should be.
 - `decision.md`, `docs/decisions/`, `handoff.md`, `handoff-round-N.md`: project notes and decision records.
 

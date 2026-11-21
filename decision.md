@@ -28,3 +28,14 @@
   can also heal injured clanmates.
 - R20: the homebase is a full clan camp with dens (rest to heal and skip to morning) and a fresh-kill pile.
 - R14: hold a key to scent the air. Glowing trails lead to nearby prey, even through trees.
+
+## Session 4 (2026-11-21) - Round 3
+
+- Build Round 3 (R21–R29) from `problem.md`. The owner renumbered the duplicate R25, so the round is R21–R29.
+- R21: rename the game Cat Clans. The start screen gets a proper title-screen look, and the preview
+  cat should look more like a cat. Add the patterns Tuxedo, Calico/tortoiseshell, Spotted and Colorpoint.
+- R26: no menu button on screen. Esc opens the main menu (Resume, Restart, New cat).
+- R25: walk into huts; the camera follows you inside.
+- R29: cats in other clans' camps defend their camp (they attack on their land when you come close).
+- R22: remove only the name/rank/clan line. Keep the task, clock, territory and bars.
+- R27: drop carried prey anywhere with a key (G); it can be picked up again.
