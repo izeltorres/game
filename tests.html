@@ -12,7 +12,8 @@
   </style>
 </head>
 <body>
-  <!-- Open this file in a browser. It loads the game below and plays through it automatically. -->
+  <!-- Open this file in a browser. It loads the game below and plays through it automatically.
+       Each check starts with the requirement ID (from problem.md) that it tests. -->
   <h2 id="summary">Running tests...</h2>
   <ul id="results"></ul>
 
@@ -22,7 +23,22 @@
     <div id="hud" class="hidden">
       <div id="cat-info"></div>
       <div id="task"></div>
+      <div id="clock"></div>
+      <div id="orders" class="hidden"></div>
       <button id="new-cat">New cat</button>
+      <div id="rogue-bar" class="bar hidden"><div class="fill"></div><span>Rogue</span></div>
+      <div id="bars">
+        <div id="health-bar" class="bar"><div class="fill"></div><span>Health</span></div>
+        <div id="food-bar" class="bar"><div class="fill"></div><span>Food</span></div>
+      </div>
+    </div>
+    <div id="fishing" class="hidden">
+      <p id="fishing-text"></p>
+      <div id="fish-water"><div id="fish-zone"></div><div id="fish"></div></div>
+    </div>
+    <div id="role-choice" class="hidden">
+      <h2>Choose your path</h2>
+      <div id="role-options"></div>
     </div>
     <div id="message" class="hidden"></div>
     <div id="menu">
@@ -37,38 +53,89 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="game.js"></script>
+  <script src="render3d.js"></script>
   <script src="script.js"></script>
 
   <script>
     const results = [];
 
-    function check(name, ok) {
-      results.push({ name, ok: !!ok });
+    // check("R7", "what is checked", () => true or false)
+    function check(id, name, test) {
+      let ok = false;
+      let error = "";
+      try { ok = !!test(); } catch (e) { error = " (error: " + e.message + ")"; }
+      results.push({ name: `${id}: ${name}${error}`, ok });
+    }
+
+    // Run the game logic for some seconds (60 steps per second)
+    function step(seconds) {
+      for (let i = 0; i < Math.round(seconds * 60); i++) update(1 / 60);
+    }
+    function releaseAll() {
+      for (const k in keys) keys[k] = false;
+    }
+    // Press a key for one frame and keep holding it until releaseAll()
+    function tap(code) {
+      pressed[code] = true;
+      keys[code] = true;
+      step(1 / 60);
+    }
+    function pressE() {
+      tap("KeyE");
+      keys.KeyE = false;
+    }
+    function dist2d(a, b) {
+      return Math.hypot(a.x - b.x, a.z - b.z);
+    }
+    // Put the player at (x, z) facing +z, standing on the ground
+    function place(x, z) {
+      Object.assign(player, { x, z, y: 0, vy: 0, heading: 0, onGround: true, climbing: null, running: false });
+    }
+    // Walk forward for some seconds with a clan, from an open spot; returns the distance
+    function walkFor(clan, seconds, run) {
+      clanName = clan;
+      place(-60, -60);
+      trees.length = 0;
+      if (run) { tap("KeyW"); keys.KeyW = false; step(0.05); tap("KeyW"); }
+      keys.KeyW = true;
+      const start = { x: player.x, z: player.z };
+      step(seconds);
+      releaseAll();
+      return dist2d(player, start);
+    }
+    // A fresh game that has already reached the role choice
+    function freshAtRoleChoice(clan) {
+      clanName = clan || "ThunderClan";
+      resetGame();
+      playing = true;
+      stage = 3;
+      choosingRole = true;
+    }
+    // Climb a test tree for some seconds; returns the height reached
+    function climbFor(clan, seconds) {
+      clanName = clan;
+      trees.length = 0;
+      trees.push({ x: -50, z: -50, r: 0.6, h: 12, kind: "oak", phase: 0 });
+      place(-50, -50 - 0.6 - 0.45);
+      keys.KeyW = true;
+      step(seconds);
+      const height = player.y;
+      releaseAll();
+      return height;
     }
 
     window.addEventListener("load", () => {
       const doc = document;
-      const g = (code) => (0, eval)(code); // read or run code from script.js
-
-      // Run the game logic for some seconds (60 steps per second)
-      function step(seconds) {
-        for (let i = 0; i < Math.round(seconds * 60); i++) g("update(1/60)");
-      }
-      function pressE() {
-        g("pressed.KeyE = true");
-        step(1 / 60);
-      }
-      function releaseAll() {
-        g("for (const k in keys) keys[k] = false");
-      }
-
       try {
+        // ================= Initial requirements (R1-R5) =================
         // ---------- Menu ----------
-        check("menu shows 6 fur colours", doc.querySelectorAll("#fur-options button").length === 6);
-        check("menu shows 4 eye colours", doc.querySelectorAll("#eye-options button").length === 4);
-        check("menu shows 3 patterns", doc.querySelectorAll("#pattern-options button").length === 3);
-        check("menu shows 4 clans", doc.querySelectorAll("#clan-options button").length === 4);
-        check("name is cleaned", g("cleanName('fIRE 9')") === "Fire" && g("cleanName('')") === "Fire");
+        check("R1", "menu shows 6 fur colours", () => doc.querySelectorAll("#fur-options button").length === 6);
+        check("R1", "menu shows 4 eye colours", () => doc.querySelectorAll("#eye-options button").length === 4);
+        check("R1", "menu shows 3 patterns", () => doc.querySelectorAll("#pattern-options button").length === 3);
+        check("R2", "menu shows 4 clans", () => doc.querySelectorAll("#clan-options button").length === 4);
+        check("R3", "name is cleaned", () => cleanName("fIRE 9") === "Fire" && cleanName("") === "Fire");
 
         // Choose Black, Tabby, WindClan, name "storm"
         doc.querySelector("#fur-options button[title='Black']").click();
@@ -77,91 +144,415 @@
         doc.getElementById("name-input").value = "storm";
         doc.getElementById("start-btn").click();
 
-        check("game starts", g("playing") === true);
-        check("menu hidden after start", doc.getElementById("menu").classList.contains("hidden"));
-        check("starts as a kit called Stormkit", g("fullName()") === "Stormkit" && g("STAGES[stage].rank") === "Kit");
-        check("chosen look is used", g("look.fur") === "#2e2b2b" && g("look.pattern") === "Tabby");
-        check("chosen clan is used", g("clanName") === "WindClan");
+        check("R1", "game starts", () => playing === true);
+        check("R1", "menu hidden after start", () => doc.getElementById("menu").classList.contains("hidden"));
+        check("R3", "starts as a kit called Stormkit", () => fullName() === "Stormkit" && rankName() === "Kit");
+        check("R1", "chosen look is used", () => look.fur === "#2e2b2b" && look.pattern === "Tabby");
+        check("R2", "chosen clan is used", () => clanName === "WindClan");
 
-        // ---------- Moving ----------
-        let x0 = g("player.x");
-        g("keys.KeyD = true"); step(1); releaseAll();
-        const windDistance = g("player.x") - x0;
-        check("cat walks right", windDistance > 250);
+        // ---------- Moving in 3D ----------
+        check("R1", "cat walks forward", () => {
+          place(-60, -60); trees.length = 0;
+          keys.KeyW = true; step(1); releaseAll();
+          return player.z - -60 > 3 && Math.abs(player.x - -60) < 0.01;
+        });
+        check("R1", "A turns the cat left and D turns it right", () => {
+          player.heading = 0;
+          keys.KeyA = true; step(0.5); releaseAll();
+          const left = player.heading;
+          keys.KeyD = true; step(1); releaseAll();
+          return left > 0.5 && player.heading < 0;
+        });
+        check("R1", "S walks backwards", () => {
+          place(-60, -60);
+          keys.KeyS = true; step(0.5); releaseAll();
+          return player.z < -60.5;
+        });
+        check("R1", "trees block walking", () => {
+          trees.length = 0;
+          trees.push({ x: -60, z: -55, r: 0.6, h: 12, kind: "oak", phase: 0 });
+          clanName = "WindClan";
+          place(-60.0, -60);
+          player.heading = 0.4; // walk past the trunk at an angle so it can't be climbed
+          keys.KeyW = true; step(2); releaseAll();
+          return dist2d(player, trees[0]) >= trees[0].r + 0.39 || player.climbing !== null;
+        });
+        trees = buildTrees(biome());
 
-        g("player.x = 200; keys.Space = true"); step(0.1); releaseAll();
-        check("cat can jump", g("player.y") < g("GROUND"));
-        step(1);
-        check("cat lands again", g("player.y") === g("GROUND") && g("player.onGround"));
+        check("R1", "cat can jump", () => {
+          place(-60, -60); tap("Space"); releaseAll(); step(0.1);
+          return player.y > 0;
+        });
+        check("R1", "cat lands again", () => { step(1.5); return player.y === 0 && player.onGround; });
 
-        // ---------- Task 1: squirrel ----------
-        g("player.x = 600; player.facing = 1; Object.assign(squirrel, {x: 750, state: 'idle', timer: 5})");
-        step(0.1);
-        check("squirrel runs if you walk up loudly", g("squirrel.state") === "fleeing");
+        // ---------- R4 Task 1: squirrel ----------
+        check("R4", "squirrel runs if you walk up loudly", () => {
+          clanName = "WindClan";
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 14, state: "idle", timer: 5 });
+          step(0.1);
+          return squirrel.state === "fleeing";
+        });
+        check("R4", "squirrel stays if you stalk", () => {
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 11.9, state: "idle", timer: 5 });
+          keys.ShiftLeft = true;
+          step(0.1);
+          return squirrel.state === "idle";
+        });
+        check("R4", "pounce catches squirrel -> level 2", () => { pressE(); releaseAll(); return stage === 1; });
+        check("R4", "cat grew", () => STAGES[stage].size > STAGES[0].size);
 
-        g("player.x = 600; player.facing = 1; Object.assign(squirrel, {x: 680, state: 'idle', timer: 5}); keys.ShiftLeft = true");
-        step(0.1);
-        check("squirrel stays if you stalk", g("squirrel.state") === "idle");
-        pressE(); releaseAll();
-        check("pounce catches squirrel -> level 2", g("stage") === 1);
-        check("cat grew", g("STAGES[stage].size") > g("STAGES[0].size"));
+        // ---------- R4 Task 2: fishing ----------
+        check("R4", "can't fish away from the river", () => { place(0, 0); pressE(); return fishing.active === false; });
+        check("R4", "fishing starts at the river", () => { place(RIVER_X0 - 1, 0); pressE(); return fishing.active === true; });
+        check("R4", "missing the zone does not count", () => {
+          fishing.marker = fishing.zone > 0.5 ? 0 : 1; fishing.dir = 0; pressE();
+          return fishing.catches === 0;
+        });
+        check("R4", "3 catches -> apprentice", () => {
+          for (let i = 0; i < 3; i++) { fishing.dir = 0; fishing.marker = fishing.zone; pressE(); }
+          return stage === 2 && fullName() === "Stormpaw" && !fishing.active && rankName() === "Apprentice";
+        });
 
-        // ---------- Task 2: fishing ----------
-        g("player.x = 1000"); pressE();
-        check("can't fish away from the river", g("fishing.active") === false);
-        g("player.x = RIVER_START + 20"); pressE();
-        check("fishing starts at the river", g("fishing.active") === true);
-        g("fishing.marker = fishing.zone > 0.5 ? 0 : 1; fishing.dir = 0"); pressE();
-        check("missing the zone does not count", g("fishing.catches") === 0);
-        for (let i = 0; i < 3; i++) {
-          g("fishing.dir = 0; fishing.marker = fishing.zone");
-          pressE();
-        }
-        check("3 catches -> apprentice", g("stage") === 2 && g("fullName()") === "Stormpaw" && !g("fishing.active"));
+        // ---------- R4 Task 3: rogue ----------
+        check("R4", "rogue starts a fight", () => {
+          place(ROGUE_HOME.x, ROGUE_HOME.z - 10); step(0.1);
+          return rogue.state === "fighting";
+        });
+        check("R4", "losing resets the fight (the cat faints but keeps its progress)", () => {
+          player.hp = 10; step(4);
+          return player.hp === 100 && rogue.state === "waiting" && stage === 2;
+        });
+        check("R4", "beating the rogue -> choose a role", () => {
+          place(ROGUE_HOME.x, ROGUE_HOME.z - 10); step(0.1);
+          let swipes = 0;
+          while (stage === 2 && swipes < 40) {
+            Object.assign(rogue, { x: player.x, z: player.z + 1.2 });
+            player.heading = 0; player.hp = 100;
+            pressE(); step(0.45);
+            swipes++;
+          }
+          return stage === 3 && choosingRole === true;
+        });
 
-        // ---------- Task 3: rogue ----------
-        g("player.x = ROGUE_HOME - 300; player.facing = 1"); step(0.1);
-        check("rogue starts a fight", g("rogue.state") === "fighting");
+        // ================= Round 1 =================
+        // ---------- R9 roles ----------
+        check("R9", "role choice shows Warrior, Deputy and Medicine cat", () => {
+          const box = doc.getElementById("role-choice");
+          const labels = [...doc.querySelectorAll("#role-options button")].map((b) => b.dataset.role);
+          return !box.classList.contains("hidden") && labels.join() === "Warrior,Deputy,Medicine cat";
+        });
+        check("R9", "the game waits while choosing", () => {
+          const x = player.x; keys.KeyW = true; step(0.5); releaseAll();
+          return player.x === x;
+        });
+        check("R5", "choosing Warrior -> warrior with a warrior name", () => {
+          doc.querySelector("#role-options button[data-role='Warrior']").click();
+          return rankName() === "Warrior" && !choosingRole && WARRIOR_SUFFIXES.includes(warriorSuffix) &&
+            fullName() === "Storm" + warriorSuffix && doc.getElementById("role-choice").classList.contains("hidden");
+        });
+        check("R4", "rogue runs away", () => { step(5); return rogue.state === "gone"; });
+        check("R9", "a new rogue appears some time after the last one is chased off", () => {
+          step(ROGUE_RESPAWN + 1);
+          return rogue.state === "waiting" && rogue.hp === ROGUE_HP;
+        });
+        check("R9", "winning fights after choosing a role is counted", () => {
+          const before = stats.fights;
+          place(rogue.x, rogue.z - 10); step(0.1);
+          let swipes = 0;
+          while (rogue.state === "fighting" && swipes < 40) {
+            Object.assign(rogue, { x: player.x, z: player.z + 1.2 });
+            player.heading = 0; player.hp = 100;
+            pressE(); step(0.45);
+            swipes++;
+          }
+          return stats.fights === before + 1;
+        });
+        check("R9", "catching prey after choosing a role is counted", () => {
+          const before = stats.hunts;
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 11.5, state: "idle", timer: 5 });
+          keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
+          return stats.hunts === before + 1;
+        });
+        check("R9", "a warrior with 5 prey and 3 fights becomes Leader, name ends in -star", () => {
+          stats.hunts = 4; stats.fights = 3;
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 11.5, state: "idle", timer: 5 });
+          keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
+          return role === "Leader" && rankName() === "Leader" && fullName() === "Stormstar";
+        });
+        check("R9", "a leader has 3 clanmates", () => clanmates.length === 3);
+        check("R9", "order 1 (Follow): clanmates come to the leader", () => {
+          place(-20, 20); tap("Digit1"); releaseAll(); step(8);
+          return order === "follow" && clanmates.every((c) => dist2d(c, player) < 5);
+        });
+        check("R9", "order 2 (Hunt): clanmates bring fresh-kill that refills food", () => {
+          tap("Digit2"); releaseAll();
+          player.food = 20; step(25);
+          return order === "hunt" && player.food > 20;
+        });
+        check("R9", "order 3 (Guard): clanmates go back to camp", () => {
+          tap("Digit3"); releaseAll(); step(20);
+          return order === "guard" && clanmates.every((c) => dist2d(c, CAMP) < 6);
+        });
+        check("R9", "orders panel is shown to a leader", () => !doc.getElementById("orders").classList.contains("hidden"));
 
-        // Stand still and get hit until beaten: it should reset, not end the game
-        g("player.hp = 10"); step(4);
-        check("losing resets the fight", g("player.hp") === 100 && g("rogue.state") === "waiting" && g("stage") === 2);
+        check("R9", "a deputy needs only 3 prey and 2 fights", () => {
+          freshAtRoleChoice();
+          chooseRole("Deputy");
+          const okName = rankName() === "Deputy" && fullName() === catName + warriorSuffix;
+          stats.hunts = 2; stats.fights = 2;
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 11.5, state: "idle", timer: 5 });
+          keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
+          return okName && role === "Leader";
+        });
+        check("R9", "a medicine cat never becomes leader", () => {
+          freshAtRoleChoice();
+          chooseRole("Medicine cat");
+          stats.hunts = 20; stats.fights = 20;
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 11.5, state: "idle", timer: 5 });
+          keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
+          return role === "Medicine cat" && rankName() === "Medicine cat";
+        });
+        check("R9", "a medicine cat gathers herbs to heal", () => {
+          const herb = herbs[0];
+          herb.ready = true;
+          place(herb.x, herb.z - 1);
+          player.hp = 40; pressE();
+          return player.hp === 40 + HERB_HEAL && herb.ready === false;
+        });
+        check("R9", "other roles can't gather herbs", () => {
+          freshAtRoleChoice(); chooseRole("Warrior");
+          const herb = herbs[0];
+          herb.ready = true;
+          place(herb.x, herb.z - 1);
+          player.hp = 40; pressE();
+          return player.hp === 40 && herb.ready === true;
+        });
+        check("R9", "orders do nothing for a cat that is not leader", () => {
+          tap("Digit2"); releaseAll();
+          return clanmates.length === 0 && doc.getElementById("orders").classList.contains("hidden");
+        });
 
-        g("player.x = ROGUE_HOME - 300"); step(0.1);
-        let swipes = 0;
-        while (g("stage") === 2 && swipes < 40) {
-          g("rogue.x = player.x + 50; player.facing = 1; player.hp = 100");
-          pressE(); step(0.45);
-          swipes++;
-        }
-        check("beating the rogue -> warrior", g("stage") === 3 && g("STAGES[stage].rank") === "Warrior");
-        check("warrior gets a warrior name", g("WARRIOR_SUFFIXES.includes(warriorSuffix)") && g("fullName()").startsWith("Storm"));
-        step(5);
-        check("rogue runs away", g("rogue.state") === "gone");
+        // ---------- R7 running ----------
+        check("R7", "double-tapping forward makes the cat run", () => {
+          walkFor("ThunderClan", 0.2, true);
+          keys.KeyW = true; step(1 / 60);
+          const running = player.running;
+          releaseAll();
+          return running === true;
+        });
+        check("R7", "a single tap and hold only walks", () => {
+          step(0.5); // so the last tap of the previous check is long ago
+          place(-60, -60); tap("KeyW"); step(0.5);
+          const running = player.running;
+          releaseAll();
+          return running === false;
+        });
+        check("R7", "two slow taps (more than 0.3 s apart) do not run", () => {
+          place(-60, -60); tap("KeyW"); keys.KeyW = false; step(0.4); tap("KeyW"); step(0.1);
+          const running = player.running;
+          releaseAll();
+          return running === false;
+        });
+        check("R7", "letting go of forward stops the run", () => {
+          walkFor("ThunderClan", 0.2, true);
+          step(0.1);
+          return player.running === false;
+        });
+        check("R7", "running is faster than walking", () => walkFor("ThunderClan", 1, true) > walkFor("ThunderClan", 1, false) * 1.5);
 
-        // ---------- Clan perks ----------
-        g("clanName = 'ThunderClan'; player.x = 200"); g("keys.KeyD = true"); step(1); releaseAll();
-        check("WindClan runs faster than ThunderClan", windDistance > g("player.x") - 200 + 50);
-        check("RiverClan has a bigger fishing zone", g("CLANS.RiverClan.fishZone > CLANS.ThunderClan.fishZone"));
+        // ---------- R6 clan attributes ----------
+        check("R6", "WindClan walks faster than ThunderClan", () => walkFor("WindClan", 1) > walkFor("ThunderClan", 1) + 0.5);
+        check("R6", "WindClan runs faster than every other clan", () => {
+          const wind = walkFor("WindClan", 1, true);
+          return ["ThunderClan", "RiverClan", "ShadowClan"].every((c) => wind > walkFor(c, 1, true) + 0.5);
+        });
+        check("R6", "RiverClan swims faster than other clans", () => {
+          const swim = (clan) => {
+            clanName = clan; trees.length = 0;
+            Object.assign(player, { x: (RIVER_X0 + RIVER_X1) / 2, z: -40, y: 0, heading: 0, climbing: null, onGround: true, running: false });
+            keys.KeyW = true; step(1); releaseAll();
+            return player.z - -40;
+          };
+          const river = swim("RiverClan");
+          return ["ThunderClan", "WindClan", "ShadowClan"].every((c) => river > swim(c) + 0.5);
+        });
+        check("R6", "RiverClan has a bigger fishing zone", () => CLANS.RiverClan.fishZone > CLANS.ThunderClan.fishZone);
+        check("R6", "every clan can climb a little", () =>
+          ["RiverClan", "WindClan", "ShadowClan"].every((c) => climbFor(c, 3) > 0.5));
+        check("R6", "ThunderClan climbs faster than other clans", () =>
+          ["RiverClan", "WindClan", "ShadowClan"].every((c) => climbFor("ThunderClan", 0.5) > climbFor(c, 0.5) * 1.5));
+        check("R6", "ThunderClan climbs much higher than other clans", () =>
+          ["RiverClan", "WindClan", "ShadowClan"].every((c) => climbFor("ThunderClan", 6) > climbFor(c, 6) * 2));
+        check("R6", "a climbing cat can climb down and jump off", () => {
+          climbFor("ThunderClan", 1);
+          const top = player.y;
+          keys.KeyS = true; step(0.2); releaseAll();
+          const lower = player.y < top && player.climbing !== null;
+          tap("Space"); releaseAll(); step(2);
+          return lower && player.climbing === null && player.y === 0;
+        });
+        check("R6", "ShadowClan plays in a marshy pine forest", () => {
+          clanName = "ShadowClan";
+          const t = buildTrees(biome());
+          return biome() === "marsh" && t.length > 20 && t.every((tree) => tree.kind === "pine");
+        });
+        check("R6", "other clans play in the leafy forest", () =>
+          ["ThunderClan", "RiverClan", "WindClan"].every((c) => { clanName = c; return biome() === "forest"; }));
+        check("R6", "ThunderClan prey notices you less and ShadowClan strikes harder (kept)", () =>
+          CLANS.ThunderClan.stealth < CLANS.RiverClan.stealth && CLANS.ShadowClan.damage > CLANS.WindClan.damage);
 
-        // ---------- Drawing ----------
-        let drawOk = true;
-        try {
-          for (const s of [0, 1, 2, 3]) { g(`stage = ${s}; draw()`); }
-          g("fishing.active = true; draw(); fishing.active = false");
-        } catch (e) { drawOk = false; }
-        check("every level draws without errors", drawOk);
+        // ---------- R8 health and food ----------
+        clanName = "ThunderClan";
+        resetGame();
+        playing = true;
+        trees.length = 0;
+        check("R8", "health and food bars are shown at the bottom of the screen", () => {
+          updateHud();
+          const bars = doc.getElementById("bars");
+          const wrap = doc.getElementById("wrap").getBoundingClientRect();
+          const box = bars.getBoundingClientRect();
+          return !doc.getElementById("hud").classList.contains("hidden") &&
+            doc.getElementById("health-bar") && doc.getElementById("food-bar") &&
+            box.bottom <= wrap.bottom && box.bottom > wrap.bottom - 60 && box.height > 0;
+        });
+        check("R8", "the bars match health and food", () => {
+          player.hp = 50; player.food = 25; updateHud();
+          const w = (id) => parseFloat(doc.querySelector(`#${id} .fill`).style.width);
+          return w("health-bar") === 50 && w("food-bar") === 25;
+        });
+        check("R8", "standing still uses no food", () => { player.food = 80; step(3); return player.food === 80; });
+        check("R8", "moving uses food", () => {
+          place(-60, -60); keys.KeyW = true; step(2); releaseAll();
+          return player.food < 80;
+        });
+        check("R8", "moving further uses more food", () => {
+          place(-60, -60); player.food = 80; keys.KeyW = true; step(1); releaseAll();
+          const short = 80 - player.food;
+          place(-60, -60); player.food = 80; keys.KeyW = true; step(3); releaseAll();
+          const long = 80 - player.food;
+          return long > short * 2;
+        });
+        check("R8", "running uses food twice as fast per distance", () => {
+          player.food = 80; const walked = walkFor("ThunderClan", 1);
+          const walkUse = (80 - player.food) / walked;
+          player.food = 80; const ran = walkFor("ThunderClan", 1, true);
+          const runUse = (80 - player.food) / ran;
+          return Math.abs(runUse / walkUse - 2) < 0.15;
+        });
+        check("R8", "catching a squirrel refills food", () => {
+          stage = 0; player.food = 30;
+          place(0, 10);
+          Object.assign(squirrel, { x: 0, z: 11.5, state: "idle", timer: 5 });
+          keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
+          return player.food === 30 + PREY_FOOD.squirrel;
+        });
+        check("R8", "catching a fish refills food", () => {
+          stage = 1; player.food = 30;
+          place(RIVER_X0 - 1, 0); pressE();
+          fishing.dir = 0; fishing.marker = fishing.zone; pressE();
+          fishing.active = false;
+          return player.food === 30 + PREY_FOOD.fish;
+        });
+        check("R8", "food never goes above 100", () => {
+          stage = 1; player.food = 95;
+          place(RIVER_X0 - 1, 0); pressE();
+          fishing.dir = 0; fishing.marker = fishing.zone; pressE();
+          fishing.active = false;
+          return player.food === 100;
+        });
+        check("R8", "with no food, health goes down", () => {
+          player.food = 0; player.hp = 100; step(2);
+          return player.hp < 100 && player.hp > 80;
+        });
+        check("R8", "at zero health the cat faints, wakes at camp and keeps its progress", () => {
+          stage = 1; place(-40, -40); player.food = 0; player.hp = 1; step(1);
+          return player.hp === 100 && player.food >= 50 && dist2d(player, CAMP) < 3 && stage === 1;
+        });
+
+        // ---------- R10 day and night ----------
+        resetGame();
+        check("R10", "a full day lasts one real hour", () => DAY_LENGTH === 3600);
+        check("R10", "a game starts in the morning", () => dayPhase() === "day" && dayFraction() > 0.25 && dayFraction() < 0.4 && day === 1);
+        check("R10", "time passes while playing", () => { const t = dayTime; step(2); return Math.abs(dayTime - t - 2) < 0.01; });
+        check("R10", "after one hour it is the same time on the next day", () => {
+          const start = dayTime;
+          for (let i = 0; i < 3600; i++) update(1);
+          return day === 2 && Math.abs(dayTime - start) < 0.01;
+        });
+        check("R10", "the day goes morning -> day -> sunset -> night", () => {
+          const at = (f) => { dayTime = f * DAY_LENGTH; return dayPhase(); };
+          return at(0.26) === "sunrise" && at(0.5) === "day" && at(0.75) === "sunset" && at(0.9) === "night" && at(0.05) === "night";
+        });
+        check("R10", "noon is brighter than sunset, and sunset brighter than midnight", () => {
+          const at = (f) => { dayTime = f * DAY_LENGTH; return daylight(); };
+          return at(0.5) > at(0.75) && at(0.75) > at(0) && at(0) < 0.25;
+        });
+        check("R10", "the clock is shown in the HUD", () => {
+          dayTime = 0.75 * DAY_LENGTH; updateHud();
+          const text = doc.getElementById("clock").textContent;
+          return clockText() === "18:00" && text.includes("18:00") && text.toLowerCase().includes("sunset");
+        });
+
+        // ---------- R11 camera ----------
+        resetGame();
+        stage = 3; role = "Warrior";
+        const forward = () => ({ x: Math.sin(player.heading), z: Math.cos(player.heading) });
+        check("R11", "the camera is behind the cat", () => {
+          place(0, 0); player.heading = 1;
+          const cam = cameraFor(); const f = forward();
+          return (cam.x - player.x) * f.x + (cam.z - player.z) * f.z < -1;
+        });
+        check("R11", "the camera is low (near the cat's eye level)", () => {
+          const cam = cameraFor();
+          return cam.y - player.y < 1.3 && cam.y - player.y > 0.2;
+        });
+        check("R11", "the camera is close to the cat", () => dist2d(cameraFor(), player) < 3.5);
+        check("R11", "the camera looks forward past the cat", () => {
+          const cam = cameraFor(); const f = forward();
+          return (cam.lookX - player.x) * f.x + (cam.lookZ - player.z) * f.z > 1;
+        });
+        check("R11", "the camera is even lower and closer for a small kit", () => {
+          const big = cameraFor();
+          stage = 0;
+          const small = cameraFor();
+          stage = 3;
+          return small.y < big.y && dist2d(small, player) < dist2d(big, player);
+        });
+
+        // ---------- Drawing (3D) ----------
+        check("R11", "the 3D view uses the behind-the-cat camera", () => {
+          playing = true; place(5, 5); player.heading = 2;
+          renderFrame();
+          const cam = cameraFor();
+          return Math.abs(view.camera.position.x - cam.x) < 0.001 && Math.abs(view.camera.position.z - cam.z) < 0.001;
+        });
+        check("R1", "every level draws without errors", () => {
+          for (const s of [0, 1, 2, 3]) { stage = s; renderFrame(); }
+          fishing.active = true; renderFrame(); fishing.active = false;
+          return true;
+        });
+        check("R6", "both backgrounds draw without errors", () => {
+          for (const c of ["ShadowClan", "ThunderClan"]) { clanName = c; resetGame(); playing = true; buildScene(); renderFrame(); }
+          return true;
+        });
+        check("R10", "the sky is darker at night than at noon", () => {
+          const sky = (f) => { dayTime = f * DAY_LENGTH; renderFrame(); const c = view.scene.background; return c.r + c.g + c.b; };
+          return sky(0.5) > sky(0) * 2;
+        });
 
         // ---------- New cat ----------
-        doc.getElementById("new-cat").click();
-        check("New cat goes back to the menu", !g("playing") && !doc.getElementById("menu").classList.contains("hidden"));
-
-        // Leave the game on screen in the middle of a level so it can be looked at
-        doc.getElementById("start-btn").click();
-        g("stage = 2; player.x = ROGUE_HOME - 200; rogue.state = 'fighting'; rogue.x = player.x + 70; player.facing = 1");
-        step(0.2);
+        check("R1", "New cat goes back to the menu", () => {
+          doc.getElementById("new-cat").click();
+          return !playing && !doc.getElementById("menu").classList.contains("hidden");
+        });
       } catch (e) {
-        check("tests ran without crashing: " + e.message, false);
+        check("--", "tests ran without crashing: " + e.message, () => false);
       }
 
       const failed = results.filter((r) => !r.ok).length;
