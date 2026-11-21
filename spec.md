@@ -2,7 +2,7 @@ spec.md
 
 # spec: warrior cats inspired themed game
 
-Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11 and Round 2 requirements R12–R20).
+Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20 and Round 3 requirements R21–R29).
 
 ## Purpose
 A rbg game that allows you play as a 3rd perspective account.
@@ -198,3 +198,91 @@ Each clan plays differently:
 ### Controls (Round 2)
 W/S walk, A/D turn, Shift stalk, Space jump, E action, C dodge, F pounce attack, R bite, Q scent (hold),
 M map, H herb pouch, 1/2 herbs (when the pouch is open), 1/2/3 orders (leader, when the pouch is closed), Esc stop fishing.
+
+## Round 3
+
+### R21. Title screen, name and patterns
+- The game is called **Cat Clans** (page title, title screen, README).
+- The start screen looks like a proper title screen: a big "Cat Clans" title over the 3D forest,
+  which slowly circles the camp in the background, with the cat maker on a clear panel.
+- The preview cat looks more like a cat: shorter, thicker legs with paws, a fuller body and chest,
+  a muzzle, and a soft, curved tail.
+- 7 fur patterns, all drawn on the 3D cat and moving with it:
+
+  | Pattern | What it looks like |
+  | --- | --- |
+  | Solid | One colour |
+  | Tabby | Dark stripes over the back and head, and rings on the tail |
+  | Patches | White patches |
+  | Tuxedo | White chest, white paws and white muzzle |
+  | Calico | Patches of ginger and black, and a white belly |
+  | Spotted | Dark spots on the back and sides |
+  | Colorpoint | Light body with dark face, ears, paws and tail |
+
+### R22. Less text during play
+- The line with your cat's name, rank and clan is removed from the game screen. The task, clock,
+  territory line and bars stay.
+
+### R23. Solid rocks and trees
+- No cat can walk through trees, rocks (the camp stones and the Highrock) or hut walls. This
+  includes you, your camp cats, mentors, clanmates, rogues and other clans' cats.
+- Other cats walk around obstacles that are in their way.
+
+### R24. More realistic grass
+- Grass is made of thin, tapered blades that bend in several segments, growing in clumps, darker
+  at the root and lighter at the tip.
+- There is much more of it (8000+ blades around the cat). It sways in the wind in slow waves, and
+  its colour depends on the territory.
+- No grass grows in water or on the bare ground of a camp.
+- The swaying is done on the graphics card so the extra grass doesn't slow the game down.
+
+### R25. Enter the huts
+- Every camp's dens are huts big enough to walk into: a bramble dome (radius 3) with a doorway
+  facing the middle of the camp, and a mossy nest inside.
+- The walls are solid; you can only go in and out through the doorway.
+- When you are inside a hut, the camera comes in with you and stays inside the walls.
+- Press E inside your own den to rest (same rules as R20). Inside another den, E tells you which den is yours.
+- The camp is larger so the huts fit: huts stand about 9 units from the middle of the camp, the
+  Highrock is behind the leader's den, and the stone ring is 14 units out.
+
+### R26. Main menu (Esc)
+- The "New cat" button is gone. There is no menu button on screen.
+- Press **Esc** to open the main menu. It pauses the game and has **Resume**, **Restart** (the same
+  cat and clan start over as a kit) and **New cat** (back to the cat maker).
+- Esc or Resume closes it. While fishing, Esc still stops fishing and doesn't open the menu.
+
+### R27. Dropping fresh-kill
+- Press **G** to drop the prey you are carrying. It lands on the ground in front of you, and you can
+  pick it up again with E. Dropping it at the fresh-kill pile adds it to the pile. E at the pile
+  still works as before.
+- Animations:
+  - While carrying, the prey (mouse, squirrel or fish) is shown in the cat's mouth, and the head is
+    held a little higher.
+  - When dropping, the cat dips its head and the prey falls to the ground.
+
+### R28. A real cat's tail
+- The tail is made of 8 segments so it can curve, and it moves with the cat's mood:
+
+  | When the cat is… | The tail… |
+  | --- | --- |
+  | Standing still | Held up with a gentle curve, slowly swishing |
+  | Walking | Held high with a curled, question-mark tip |
+  | Running | Streams out straight behind |
+  | Stalking | Held low near the ground, tip twitching |
+  | Fighting | Puffed up and lashing fast from side to side |
+  | Climbing | Hangs down for balance |
+  | Swimming | Floats out straight behind |
+  | Hurt and lying down | Lies limp |
+
+- When turning, the tail swings to the outside of the turn.
+- The same tail behaviour is used for every cat.
+
+### R29. Cats living in other camps
+- Each other clan's camp has 4 cats living in it. They wander around their camp.
+- They defend their camp: if you are on their territory and come within 14 units, they attack,
+  just like patrols (R16). If you leave their territory they stop and go back.
+- A beaten camp cat runs home and recovers after 30 seconds. After choosing a role, beating one
+  counts as a fight won.
+
+### Controls (Round 3)
+Esc opens the main menu (or stops fishing). G drops carried prey. All other keys are as in Round 2.
