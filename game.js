@@ -1,4 +1,4 @@
-// Forest Clans - game logic.
+// Cat Clans - game logic.
 // This file only holds the rules of the game (no drawing and no web page code),
 // so the tests can run it directly. render3d.js draws it and script.js connects it to the page.
 //
@@ -9,6 +9,7 @@
 // ======================================================
 // Settings
 // ======================================================
+const GAME_NAME = "Cat Clans";      // R21
 const WORLD_HALF = 120;          // the world goes from -120 to 120 on x and z
 const CAMP_DISTANCE = 60;        // each camp is in the middle of its quarter
 
@@ -86,7 +87,7 @@ const CLANS = {
 
 const FURS = { Ginger: "#d9822b", Grey: "#8a8d91", Black: "#2e2b2b", White: "#efebe2", Brown: "#7a4f2a", Cream: "#e3c896" };
 const EYES = { Green: "#4caf50", Amber: "#f0a020", Blue: "#4aa3df", Yellow: "#e8d33f" };
-const PATTERNS = ["Solid", "Tabby", "Patches"];
+const PATTERNS = ["Solid", "Tabby", "Patches", "Tuxedo", "Calico", "Spotted", "Colorpoint"];   // R21
 const WARRIOR_SUFFIXES = ["heart", "claw", "pelt", "storm", "whisker", "fang", "tail", "stripe"];
 
 // Each level: rank name, name ending, and how big the cat is
@@ -121,14 +122,27 @@ const ROGUE_SPAWN_SPOTS = [[40, -35], [-45, 30], [15, 50], [45, 5]];
 const OWN_HERB_SPOTS = [[12, -18, "marigold"], [-15, -8, "dock"], [20, 25, "marigold"], [-12, 28, "dock"],
                         [5, 40, "marigold"], [40, -20, "dock"]];
 const OTHER_HERB_SPOTS = [[18, -22, "marigold"], [-14, 20, "dock"]];
+// Huts (R25): big enough to walk into, standing about 9 from the middle of camp, doors facing the middle
+const HUT_R = 3;
+const HUT_WALL = 0.15;
+const HUT_DOOR = 0.3;              // half the width of the doorway, as an angle
 const DEN_SPOTS = [
-  { id: "nursery",     name: "nursery",          spot: [-5, 4] },
-  { id: "apprentices", name: "apprentices' den", spot: [5, 4] },
-  { id: "warriors",    name: "warriors' den",    spot: [6, -2] },
-  { id: "medicine",    name: "medicine den",     spot: [-6, -2] },
-  { id: "leader",      name: "leader's den",     spot: [0, -7] },   // under the Highrock
+  { id: "nursery",     name: "nursery",          spot: [-7, 5.5] },
+  { id: "apprentices", name: "apprentices' den", spot: [7, 5.5] },
+  { id: "warriors",    name: "warriors' den",    spot: [8.5, -3] },
+  { id: "medicine",    name: "medicine den",     spot: [-8.5, -3] },
+  { id: "leader",      name: "leader's den",     spot: [0, -9] },   // in front of the Highrock
 ];
+// Rocks (R23): a ring of stones around each camp and the Highrock behind the leader's den
+const HIGHROCK_SPOT = [0, -15];
+const HIGHROCK_R = 2.5;
+const STONE_RING = 14;
+const STONE_R = 0.5;
+const CAMP_CLEARING = 20;         // no trees this close to a camp
+const CAMP_YARD = 4.5;            // camp cats wander this close to the middle
 const FRESH_KILL_SPOT = [3, 0];
+const DROP_TIME = 0.4;            // how long dropped prey takes to fall (R27)
+const MOUTH_HEIGHT = 0.6;
 
 // ======================================================
 // Game state
@@ -165,13 +179,16 @@ const squirrel = {};
 const rogue = {};
 const fishing = {};
 const stats = { hunts: 0, fights: 0 };   // counted after choosing a role (R9)
-const ui = { map: false, pouch: false }; // the map (R15) and herb pouch (R18) are open or closed
+const ui = { map: false, pouch: false, menu: false }; // map (R15), herb pouch (R18), main menu (R26)
 let trees = [];
 let herbs = [];
 let prey = [];          // beetles and mice (R13)
 let clanmates = [];     // a leader's 3 followers (R9)
 let campCats = [];      // the cats living in your camp, including the mentors (R16, R19)
-let patrols = [];       // other clans' patrol cats (R16)
+let patrols = [];       // other clans' cats: patrols (R16) and camp cats (R29); p.mode says which
+let huts = [];          // every camp's huts (R25)
+let rocks = [];         // camp stones and Highrocks (R23)
+let dropped = [];       // prey dropped on the ground (R27)
 
 // script.js fills these in so the logic can talk to the page
 const hooks = { message: null, afterUpdate: null };
@@ -231,6 +248,8 @@ function resetGame() {
   day = 1;
   ui.map = false;
   ui.pouch = false;
+  ui.menu = false;
+  dropped = [];
   Object.assign(stats, { hunts: 0, fights: 0 });
 
   // Places for this clan
@@ -239,17 +258,19 @@ function resetGame() {
   ROGUE_SPAWNS.length = 0;
   ROGUE_SPAWN_SPOTS.forEach(([u, v]) => ROGUE_SPAWNS.push(spotFor(clanName, u, v)));
   Object.assign(FRESH_KILL, spotFor(clanName, ...FRESH_KILL_SPOT));
-  dens = DEN_SPOTS.map((d) => Object.assign({ id: d.id, name: d.name }, spotFor(clanName, ...d.spot)));
+  huts = buildHuts();
+  rocks = buildRocks();
+  dens = huts.filter((h) => h.clan === clanName);
 
   Object.assign(player, {
     x: CAMP.x, z: CAMP.z + 3, y: 0, vy: 0, heading: 0, turnVel: 0, camHeading: 0, onGround: true,
     crouching: false, moving: false, running: false, scenting: false, climbing: null, walk: 0,
     hp: 100, food: 100, attackTimer: 0, attackCooldown: 0, hurtTimer: 0,
     dodgeTimer: 0, dodgeCooldown: 0, dodgeX: 0, dodgeZ: 0, recover: 0, biteCooldown: 0,
-    carrying: null, pouch: { marigold: 0, dock: 0 },
+    carrying: null, dropTimer: 0, pouch: { marigold: 0, dock: 0 },
   });
   // critter state: idle | hopping | fleeing | hidden | caught
-  const s = spotFor(clanName, 4, 14);
+  const s = spotFor(clanName, 4, 24);
   Object.assign(squirrel, { kind: "squirrel", x: s.x, z: s.z, state: "idle", timer: 1, dirX: 0, dirZ: 1, hop: 0,
                             respawn: 0, trail: [], trailTimer: 0 });
   // rogue.state: waiting | fighting | fleeing | gone
@@ -324,16 +345,54 @@ function turnHint(target) {
   return angle > 0 ? "to your left" : "to your right";
 }
 
+// Huts can only be entered through their doorway (R25): if the cat and its target are not in the
+// same hut, head for the doorway first (from inside, the spot just inside it; from outside, just outside it)
+function viaDoorway(body, target) {
+  const from = insideHut(body);
+  const to = insideHut(target);
+  if (from === to) return target;
+  const h = from || to;
+  const angle = Math.atan2(body.x - h.x, body.z - h.z);
+  const lined = Math.abs(wrapAngle(angle - h.door)) < HUT_DOOR * 0.7;   // lined up with the doorway
+  const reach = from ? h.R - 0.8 : h.R + 0.8;
+  const doorSpot = { x: h.x + Math.sin(h.door) * reach, z: h.z + Math.cos(h.door) * reach };
+  if (from) return lined || distance(body, doorSpot) < 0.3 ? { x: h.x + Math.sin(h.door) * (h.R + 0.8), z: h.z + Math.cos(h.door) * (h.R + 0.8) } : doorSpot;
+  return lined || distance(body, doorSpot) < 0.3 ? target : doorSpot;
+}
+
+// Walk a cat toward a target. If something solid is in the way (R23), try turning more and more
+// until a step makes progress, so the cat walks around it. It keeps turning to the same side as
+// last time, so it doesn't swing back and forth in front of an obstacle. A cat never steps into
+// a hut by accident: only when the hut is where it is going (R25).
 function moveToward(body, target, speed, dt) {
+  target = viaDoorway(body, target);
   const d = distance(body, target);
   if (d < 0.05) {
     body.moving = false;
     return;
   }
-  body.heading = Math.atan2(target.x - body.x, target.z - body.z);
+  const want = Math.atan2(target.x - body.x, target.z - body.z);
   const stepSize = Math.min(speed * dt, d);
-  body.x += Math.sin(body.heading) * stepSize;
-  body.z += Math.cos(body.heading) * stepSize;
+  const side = body.avoidSide || 1;
+  const fromHut = insideHut(body);
+  const targetHut = insideHut(target);
+  let best = null;
+  for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4]) {
+    const h = want + turn * side;
+    const trial = { x: body.x + Math.sin(h) * stepSize, z: body.z + Math.cos(h) * stepSize };
+    pushOutOfObstacles(trial, CAT_R, fromHut || targetHut);
+    const trialHut = insideHut(trial);
+    if (!fromHut && trialHut && trialHut !== targetHut) continue;   // don't wander into a hut
+    const progress = d - distance(trial, target);
+    if (!best || progress > best.progress) best = { trial, h, progress, turn };
+    if (progress > stepSize * 0.3) break;
+  }
+  if (best) {
+    body.x = best.trial.x;
+    body.z = best.trial.z;
+    body.heading = best.h;
+    if (best.turn !== 0) body.avoidSide = Math.sign(best.turn) * side;
+  }
   body.walk = (body.walk || 0) + stepSize * 3;
   body.moving = true;
 }
@@ -404,7 +463,7 @@ function buildTrees() {
     const place = biomeAt(x, z);
     if (keep > density[place]) continue;
     if (nearRiver(x) || WATERS.some((w) => x > w.x0 - 4 && x < w.x1 + 4)) continue;   // not by the water
-    if (Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < 16)) continue;  // camps are clearings
+    if (Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < CAMP_CLEARING)) continue;  // camps are clearings
     if (keepClear.some((p) => Math.hypot(x - p.x, z - p.z) < 5)) continue;
     list.push({ x, z, r, h: place === "moor" ? h * 0.6 : h, kind: kinds[place], phase });
   }
@@ -434,15 +493,25 @@ const PATROL_FURS = {
   WindClan: ["#c9b27a", "#8a7a5a"], ShadowClan: ["#2b2830", "#4a4050"],
 };
 
+// Other clans' cats: 2 patrol cats walking a loop around the camp (R16), then 4 cats living in the camp (R29)
 function buildPatrols() {
   const list = [];
+  const campPatterns = ["Tabby", "Spotted", "Calico", "Tuxedo"];
   for (const clan in CLANS) {
     if (clan === clanName) continue;
-    for (let i = 0; i < 2; i++) {
-      const c = { clan, home: campOf(clan), angle: i * Math.PI, hp: PATROL_HP, state: "patrol", heading: 0, walk: 0,
+    for (let i = 0; i < 6; i++) {
+      const mode = i < 2 ? "patrol" : "camp";
+      const c = { clan, mode, home: campOf(clan), angle: i * Math.PI, hp: PATROL_HP, state: "patrol", heading: 0, walk: 0,
                   moving: false, windup: 0, cooldown: 0, hurtTimer: 0, stagger: 0, fleeTimer: 0, respawn: 0,
-                  look: { fur: PATROL_FURS[clan][i], eyes: EYES.Yellow, pattern: i ? "Tabby" : "Solid" } };
-      Object.assign(c, patrolPoint(c));
+                  target: null, timer: i,
+                  look: { fur: PATROL_FURS[clan][i % 2], eyes: EYES.Yellow,
+                          pattern: mode === "patrol" ? (i ? "Tabby" : "Solid") : campPatterns[i - 2] } };
+      if (mode === "camp") {
+        const a = i * 1.7;
+        Object.assign(c, { x: c.home.x + Math.sin(a) * 3, z: c.home.z + Math.cos(a) * 3 });
+      } else {
+        Object.assign(c, patrolPoint(c));
+      }
       list.push(c);
     }
   }
@@ -451,6 +520,78 @@ function buildPatrols() {
 
 function patrolPoint(c) {
   return { x: c.home.x + Math.sin(c.angle) * PATROL_RADIUS, z: c.home.z + Math.cos(c.angle) * PATROL_RADIUS };
+}
+
+// A random spot in the open middle of a camp, for cats wandering around it
+function campYardSpot(camp) {
+  const a = Math.random() * Math.PI * 2;
+  const r = 1.5 + Math.random() * (CAMP_YARD - 1.5);
+  return { x: camp.x + Math.sin(a) * r, z: camp.z + Math.cos(a) * r };
+}
+
+// Huts for every camp (R25); a clan's own huts are its dens (R20)
+function buildHuts() {
+  const list = [];
+  for (const clan in CLANS) {
+    const camp = campOf(clan);
+    for (const d of DEN_SPOTS) {
+      const spot = spotFor(clan, ...d.spot);
+      list.push({ id: d.id, name: d.name, clan, x: spot.x, z: spot.z, R: HUT_R,
+                  door: Math.atan2(camp.x - spot.x, camp.z - spot.z) });
+    }
+  }
+  return list;
+}
+
+// The Highrock and a ring of stones around every camp, with gaps behind the huts (R23)
+function buildRocks() {
+  const list = [];
+  for (const clan in CLANS) {
+    const camp = campOf(clan);
+    const highrock = spotFor(clan, ...HIGHROCK_SPOT);
+    list.push({ kind: "highrock", clan, x: highrock.x, z: highrock.z, r: HIGHROCK_R });
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2;
+      const stone = { kind: "stone", clan, x: camp.x + Math.sin(a) * STONE_RING, z: camp.z + Math.cos(a) * STONE_RING, r: STONE_R };
+      const nearHut = DEN_SPOTS.some((d) => distance(stone, spotFor(clan, ...d.spot)) < HUT_R + 2.5);
+      if (nearHut || distance(stone, highrock) < HIGHROCK_R + 2.5) continue;
+      list.push(stone);
+    }
+  }
+  return list;
+}
+
+// The hut something is inside, if any
+function insideHut(body) {
+  return huts.find((h) => distance(body, h) < h.R - 0.05) || null;
+}
+
+// Push something with radius `radius` out of every solid thing: trees, rocks and hut walls (R23, R25).
+// Doorways are open for the player. Other cats pass `doorsOpenFor`: only that hut's doorway is open
+// to them (null = all doors closed), so a hut is just a round obstacle to walk around.
+function pushOutOfObstacles(body, radius, doorsOpenFor) {
+  pushOutOfTrees(body, radius);
+  for (const r of rocks) {
+    const dx = body.x - r.x;
+    const dz = body.z - r.z;
+    const d = Math.hypot(dx, dz);
+    const min = r.r + radius;
+    if (d < min && d > 0.0001) {
+      body.x = r.x + (dx / d) * min;
+      body.z = r.z + (dz / d) * min;
+    }
+  }
+  for (const h of huts) {
+    const dx = body.x - h.x;
+    const dz = body.z - h.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.0001 || Math.abs(d - h.R) >= radius + HUT_WALL) continue;   // not touching the wall
+    const doorOpen = doorsOpenFor === undefined || doorsOpenFor === h;
+    if (doorOpen && Math.abs(wrapAngle(Math.atan2(dx, dz) - h.door)) < HUT_DOOR) continue; // in the doorway
+    const keep = d < h.R ? h.R - radius - HUT_WALL : h.R + radius + HUT_WALL;  // stay on the side you are on
+    body.x = h.x + (dx / d) * keep;
+    body.z = h.z + (dz / d) * keep;
+  }
 }
 
 // Push something with radius `radius` out of every tree trunk
@@ -487,7 +628,9 @@ function trunkInFront() {
 // ======================================================
 function update(dt) {
   time += dt;
-  if (playing && !choosingRole && !choosingMentor) {
+  if (playing && ui.menu) {
+    if (pressed.Escape) ui.menu = false;   // the main menu pauses the game (R26)
+  } else if (playing && !choosingRole && !choosingMentor) {
     updateMenusKeys();
     updateDay(dt);
     if (fishing.active) updateFishing(dt);
@@ -499,6 +642,7 @@ function update(dt) {
     patrols.forEach((c) => updatePatrol(c, dt));
     updateCampCats(dt);
     updateHerbs(dt);
+    updateDropped(dt);
     if (stage === 3) updateClanmates(dt);
     updateCamera(dt);
   }
@@ -506,8 +650,10 @@ function update(dt) {
   for (const k in pressed) delete pressed[k];
 }
 
-// M: map (R15). H: herb pouch (R18); while it is open, 1 and 2 use herbs.
+// Esc: main menu (R26; while fishing, Esc stops fishing instead). M: map (R15).
+// H: herb pouch (R18); while it is open, 1 and 2 use herbs.
 function updateMenusKeys() {
+  if (pressed.Escape && !fishing.active) ui.menu = true;
   if (pressed.KeyM) ui.map = !ui.map;
   if (pressed.KeyH) ui.pouch = !ui.pouch;
   if (ui.pouch) {
@@ -522,6 +668,7 @@ function updatePlayer(dt) {
   player.hurtTimer = Math.max(0, player.hurtTimer - dt);
   player.dodgeCooldown = Math.max(0, player.dodgeCooldown - dt);
   player.biteCooldown = Math.max(0, player.biteCooldown - dt);
+  player.dropTimer = Math.max(0, player.dropTimer - dt);
 
   if (stage === 3 && role === "Leader" && !ui.pouch) {
     for (const code in ORDERS) if (pressed[code]) giveOrder(ORDERS[code]);
@@ -539,7 +686,7 @@ function updatePlayer(dt) {
     player.dodgeTimer -= dt;
     player.x += player.dodgeX * DODGE_SPEED * dt;
     player.z += player.dodgeZ * DODGE_SPEED * dt;
-    pushOutOfTrees(player, CAT_R);
+    pushOutOfObstacles(player, CAT_R);
     keepInWorld(player);
     return;
   }
@@ -592,7 +739,7 @@ function updatePlayer(dt) {
   player.x += Math.sin(player.heading) * stepSize;
   player.z += Math.cos(player.heading) * stepSize;
   keepInWorld(player);
-  pushOutOfTrees(player, CAT_R);
+  pushOutOfObstacles(player, CAT_R);
 
   // R8: moving uses food, running twice as much per distance
   const moved = Math.hypot(player.x - oldX, player.z - oldZ);
@@ -609,6 +756,7 @@ function updatePlayer(dt) {
   if (pressed.KeyC) tryDodge();
   else if (pressed.KeyF) tryPounceAttack();
   else if (pressed.KeyR) tryBite();
+  else if (pressed.KeyG) dropPrey();
   else if (pressed.KeyE) doAction();
 }
 
@@ -719,11 +867,11 @@ function randomHomeSpot() {
   let spot = spotFor(clanName, 30, 30);
   for (let i = 0; i < 30; i++) {
     const s = spotFor(clanName, -52 + Math.random() * 104, -52 + Math.random() * 104);
-    if (distance(s, CAMP) < 15 || nearRiver(s.x)) continue;
+    if (distance(s, CAMP) < CAMP_CLEARING || nearRiver(s.x)) continue;
     spot = s;
     break;
   }
-  pushOutOfTrees(spot, 0.3);
+  pushOutOfObstacles(spot, 0.3);
   return spot;
 }
 
@@ -817,7 +965,7 @@ function respawnCritter(c) {
     c.x = player.x + Math.sin(angle) * d;
     c.z = player.z + Math.cos(angle) * d;
     keepCritterHome(c);
-    pushOutOfTrees(c, 0.3);
+    pushOutOfObstacles(c, 0.3);
   } else {
     Object.assign(c, randomHomeSpot());
   }
@@ -891,7 +1039,7 @@ function updateCritter(c, dt) {
     c.x += c.dirX * kind.wander * dt;
     c.z += c.dirZ * kind.wander * dt;
     keepCritterHome(c);
-    pushOutOfTrees(c, 0.3);
+    pushOutOfObstacles(c, 0.3);
     c.hop += dt * 10;
   }
 }
@@ -1064,7 +1212,7 @@ function tryPounceAttack() {
   player.x += Math.sin(player.heading) * 2;
   player.z += Math.cos(player.heading) * 2;
   keepInWorld(player);
-  pushOutOfTrees(player, CAT_R);
+  pushOutOfObstacles(player, CAT_R);
   player.vy = 3;
   player.onGround = false;
   player.attackTimer = 0.3;
@@ -1109,10 +1257,7 @@ function fightStep(e, dt) {
       if (dist < 1.8) hurtPlayer(14, e);
     }
   } else if (dist > 1.3) {
-    e.x += Math.sin(e.heading) * 4 * dt;
-    e.z += Math.cos(e.heading) * 4 * dt;
-    pushOutOfTrees(e, CAT_R);
-    e.walk += dt * 8;
+    moveToward(e, player, 4, dt);   // walks around trees and rocks (R23)
   } else if (e.cooldown <= 0) {
     e.windup = 0.45;
   }
@@ -1154,6 +1299,7 @@ function updateRogue(dt) {
     r.heading = away;
     r.x += Math.sin(away) * 8 * dt;
     r.z += Math.cos(away) * 8 * dt;
+    pushOutOfObstacles(r, CAT_R);
     r.walk += dt * 16;
     r.fleeTimer -= dt;
     if (r.fleeTimer <= 0) {
@@ -1178,7 +1324,7 @@ function updatePatrol(c, dt) {
 
   if (c.state === "resting") {
     c.respawn -= dt;
-    if (c.respawn <= 0) Object.assign(c, { state: "patrol", hp: PATROL_HP }, patrolPoint(c));
+    if (c.respawn <= 0) Object.assign(c, { state: "patrol", hp: PATROL_HP }, c.mode === "camp" ? campYardSpot(c.home) : patrolPoint(c));
     return;
   }
   if (c.state === "fleeing") {
@@ -1194,12 +1340,22 @@ function updatePatrol(c, dt) {
 
   const playerOnTheirLand = territoryAt(player.x, player.z) === c.clan;
   if (c.state === "patrol") {
-    c.angle += dt * 0.12;
-    moveToward(c, patrolPoint(c), 2.5, dt);
+    if (c.mode === "camp") {
+      // R29: camp cats wander around their camp, and defend it
+      c.timer -= dt;
+      if (c.timer <= 0 || !c.target) {
+        c.target = campYardSpot(c.home);
+        c.timer = 3 + Math.random() * 4;
+      }
+      moveToward(c, c.target, distance(c, c.home) > 8 ? 5 : 1.5, dt);
+    } else {
+      c.angle += dt * 0.12;
+      moveToward(c, patrolPoint(c), 2.5, dt);
+    }
     if (playerOnTheirLand && distance(c, player) < PATROL_SIGHT) {
       c.state = "fighting";
       c.windup = 0;
-      say(`A ${c.clan} patrol attacks! You are on their territory.`, 2.5);
+      say(c.mode === "camp" ? `${c.clan} cats defend their camp!` : `A ${c.clan} patrol attacks! You are on their territory.`, 2.5);
     }
   } else if (c.state === "fighting") {
     if (!playerOnTheirLand) {
@@ -1218,7 +1374,7 @@ function hurtPlayer(amount, from) {
   player.hurtTimer = 0.3;
   player.x += Math.sin(from.heading) * 1;
   player.z += Math.cos(from.heading) * 1;
-  pushOutOfTrees(player, CAT_R);
+  pushOutOfObstacles(player, CAT_R);
   if (player.hp <= 0) faint("You were beaten... You wake up back at camp. Rest, then try again.");
 }
 
@@ -1310,9 +1466,9 @@ function clanmateTarget(c, i) {
     const angle = (i / 3) * Math.PI * 2;
     return { x: CAMP.x + Math.sin(angle) * 3.5, z: CAMP.z + Math.cos(angle) * 3.5 };
   }
-  // hunt: wander a loop in your territory, each cat in its own place
+  // hunt: wander a loop in your territory, well away from camp, each cat in its own place
   const angle = time * 0.1 + i * 2;
-  return spotFor(clanName, 20 + Math.sin(angle) * 12 + i * 4, Math.cos(angle) * 12 + i * 6);
+  return spotFor(clanName, 36 + Math.sin(angle) * 8, 12 + Math.cos(angle) * 8 + i * 4);
 }
 
 function updateClanmates(dt) {
@@ -1373,9 +1529,7 @@ function updateCampCats(dt) {
     // Wander around camp; hurry back if far away
     c.timer -= dt;
     if (c.timer <= 0 || !c.target) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 1.5 + Math.random() * 4.5;
-      c.target = { x: CAMP.x + Math.sin(a) * r, z: CAMP.z + Math.cos(a) * r };
+      c.target = campYardSpot(CAMP);
       c.timer = 3 + Math.random() * 4;
     }
     moveToward(c, c.target, distance(c, CAMP) > 8 ? 5 : 1.5, dt);
@@ -1481,6 +1635,14 @@ function useFreshKill() {
 
 // Things in the world you can use with E: hurt clanmates, herbs, the fresh-kill pile, dens
 function tryInteract() {
+  // Pick up prey dropped on the ground (R27)
+  const lying = dropped.find((d) => distance(player, d) < 1.5);
+  if (lying && !player.carrying) {
+    dropped.splice(dropped.indexOf(lying), 1);
+    player.carrying = lying.kind;
+    say(`You pick up the ${lying.kind}.`, 1.5);
+    return true;
+  }
   const hurt = campCats.find((c) => c.injured && distance(player, c) < 2);
   if (hurt) {
     if (role === "Medicine cat") {
@@ -1498,12 +1660,46 @@ function tryInteract() {
     useFreshKill();
     return true;
   }
-  const den = dens.filter((d) => distance(player, d) < 2.5).sort((a, b) => distance(player, a) - distance(player, b))[0];
-  if (den) {
+  // Inside one of your camp's huts (R25): rest if it is your den
+  const den = insideHut(player);
+  if (den && den.clan === clanName) {
     useDen(den);
     return true;
   }
   return false;
+}
+
+// G: drop the prey you carry (R27). At the fresh-kill pile it goes onto the pile.
+function dropPrey() {
+  if (!player.carrying) return;
+  const kind = player.carrying;
+  player.carrying = null;
+  player.dropTimer = DROP_TIME;
+  if (distance(player, FRESH_KILL) < 1.8) {
+    freshKill++;
+    say(`You drop the ${kind} on the fresh-kill pile for your clan.`, 2);
+    return;
+  }
+  dropped.push({
+    kind, fall: DROP_TIME, y: MOUTH_HEIGHT * catSize(), start: MOUTH_HEIGHT * catSize(),
+    x: player.x + Math.sin(player.heading) * 0.8, z: player.z + Math.cos(player.heading) * 0.8,
+  });
+}
+
+// Dropped prey falls from the cat's mouth to the ground
+function updateDropped(dt) {
+  for (const d of dropped) {
+    if (d.fall <= 0) continue;
+    d.fall = Math.max(0, d.fall - dt);
+    d.y = d.start * (d.fall / DROP_TIME) * (d.fall / DROP_TIME);
+  }
+}
+
+// R26: Restart from the main menu: the same cat and clan start over as a kit
+function restartGame() {
+  resetGame();
+  playing = true;
+  ui.menu = false;
 }
 
 // ======================================================
@@ -1553,7 +1749,7 @@ function cameraFor() {
   const height = 0.35 + 0.7 * size;
   const fx = Math.sin(player.camHeading);
   const fz = Math.cos(player.camHeading);
-  return {
+  const cam = {
     x: player.x - fx * back,
     y: player.y + height,
     z: player.z - fz * back,
@@ -1561,6 +1757,18 @@ function cameraFor() {
     lookY: player.y + 0.45 * size,
     lookZ: player.z + fz * 4,
   };
+  // R25: inside a hut, keep the camera inside the walls
+  const hut = insideHut(player);
+  if (hut) {
+    const room = hut.R - 0.4;
+    const d = distance(cam, hut);
+    if (d > room) {
+      cam.x = hut.x + (cam.x - hut.x) * (room / d);
+      cam.z = hut.z + (cam.z - hut.z) * (room / d);
+    }
+    cam.y = Math.min(cam.y, hut.R * 0.6);
+  }
+  return cam;
 }
 
 // Letters only, first letter capital: "fIRE" -> "Fire"
