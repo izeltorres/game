@@ -1,10 +1,11 @@
-// Forest Clans - 3D drawing with Three.js (free, loaded from a CDN in index.html).
+// Cat Clans - 3D drawing with Three.js (free, loaded from a CDN in index.html).
 // It only reads the game state from game.js; it never changes it.
 
 let view = null;      // { renderer, scene, camera, ... } once the 3D view is ready
 let preview = null;   // the small turning cat on the start menu
 
 const ROGUE_LOOK = { fur: "#6b6156", eyes: "#d4c84a", pattern: "Tabby" };
+const WHITE_FUR = "#f4f1ea";
 
 const SKY = { night: "#0b1630", day: "#87b5d9", sunset: "#f08a4b" };
 // The look of each kind of territory (R6, R15)
@@ -14,7 +15,15 @@ const PLACES = {
   moor:      { ground: "#8a9a55", grass: "#a8a860", trunk: "#5b4a35", leaves: ["#5a7a35", "#6a8a3a", "#4f6f30"], fogNear: 60, fogFar: 200 },
   riverside: { ground: "#5a9a4a", grass: "#7ab850", trunk: "#6b5a45", leaves: ["#6aa84a", "#7cba5a", "#5a9a42"], fogNear: 45, fogFar: 160 },
 };
-const GRASS_WINDOW = 70;   // grass is drawn in a square this big around the cat
+
+// Grass (R24): blades grow in clumps inside a square that moves with the cat
+const GRASS_WINDOW = 60;
+const GRASS_CLUMPS = 1500;
+const BLADES_PER_CLUMP = 6;
+const GRASS_CAMP_RADIUS = 12.5;   // bare ground in camps
+
+const TAIL_SEGMENTS = 8;
+const TAIL_LENGTH = 0.075;        // length of one tail segment
 
 function has3D() {
   return typeof THREE !== "undefined";
@@ -26,98 +35,186 @@ function mat(color, extra) {
 }
 
 // ======================================================
-// Models
+// Cats (R21: better shape and 7 patterns; R28: a tail that moves like a real cat's)
 // ======================================================
-// Cat model (faces +z, 1 unit long at size 1)
+// A cat facing +z, about 1 unit long at size 1.
+// userData: body, head, legs, paws, torso, tailPivots, tailSegments, patternPieces, carryModels, hurt
 function makeCatModel(catLook) {
-  const fur = mat(catLook.fur);
-  const dark = mat(new THREE.Color(catLook.fur).multiplyScalar(0.6));
-  const light = mat(catLook.fur === "#efebe2" ? "#d9822b" : "#f4f1ea");
+  const sphere = new THREE.SphereGeometry(1, 16, 12);
+  const pattern = catLook.pattern;
+  // Colorpoint cats have a light body; their fur colour shows on the "points" (R21)
+  const bodyColor = pattern === "Colorpoint" ? new THREE.Color(catLook.fur).lerp(new THREE.Color("#f2ead8"), 0.7) : new THREE.Color(catLook.fur);
+  const fur = mat(bodyColor);
+  const darkColor = new THREE.Color(catLook.fur).multiplyScalar(pattern === "Colorpoint" ? 0.5 : 0.55);
+  const dark = mat(darkColor);
+  const white = mat(catLook.fur === FURS.White && pattern === "Patches" ? FURS.Ginger : WHITE_FUR);
+  const patternPieces = [];
+  const addPiece = (parent, mesh, name) => {
+    mesh.name = name;
+    parent.add(mesh);
+    patternPieces.push(mesh);
+    return mesh;
+  };
+  const blob = (material, sx, sy, sz, x, y, z) => {
+    const m = new THREE.Mesh(sphere, material);
+    m.scale.set(sx, sy, sz);
+    m.position.set(x, y, z);
+    return m;
+  };
+
   const cat = new THREE.Group();
   const body = new THREE.Group();   // everything that moves down when crouching
   cat.add(body);
 
-  const sphere = new THREE.SphereGeometry(1, 16, 12);
-
-  const torso = new THREE.Mesh(sphere, fur);
-  torso.scale.set(0.23, 0.22, 0.48);
-  torso.position.set(0, 0.48, 0);
+  // Body: a long torso with a chest at the front and haunches at the back
+  const torso = blob(fur, 0.21, 0.2, 0.42, 0, 0.42, 0);
   body.add(torso);
+  body.add(blob(fur, 0.19, 0.2, 0.2, 0, 0.46, 0.28));     // chest
+  body.add(blob(fur, 0.2, 0.2, 0.2, 0, 0.43, -0.25));     // haunches
+  body.add(blob(fur, 0.11, 0.13, 0.13, 0, 0.57, 0.42));   // neck
 
-  if (catLook.pattern === "Tabby") {
-    for (const z of [-0.3, -0.12, 0.06, 0.24]) {
-      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 12, Math.PI), dark);
-      stripe.position.set(0, 0.48, z);
-      stripe.rotation.y = Math.PI / 2;
-      stripe.scale.set(1, 1.1, 1.15);
-      body.add(stripe);
-    }
-  } else if (catLook.pattern === "Patches") {
-    for (const [x, y, z, s] of [[0.14, 0.5, 0.1, 0.12], [-0.15, 0.45, -0.15, 0.1], [0, 0.31, 0.05, 0.14]]) {
-      const patch = new THREE.Mesh(sphere, light);
-      patch.scale.set(s * 0.6, s * 0.6, s);
-      patch.position.set(x, y, z);
-      body.add(patch);
-    }
-  }
-
-  // Head with ears, eyes and nose
+  // Head with ears, cheeks, muzzle, eyes and nose
   const head = new THREE.Group();
-  head.position.set(0, 0.7, 0.5);
+  head.position.set(0, 0.68, 0.52);
   body.add(head);
-  const skull = new THREE.Mesh(sphere, fur);
-  skull.scale.set(0.2, 0.18, 0.19);
-  head.add(skull);
-  const earGeo = new THREE.ConeGeometry(0.07, 0.16, 4);
-  for (const side of [-1, 1]) {
+  head.add(blob(fur, 0.17, 0.15, 0.16, 0, 0, 0));
+  head.add(blob(fur, 0.15, 0.1, 0.11, 0, -0.04, 0.05));   // cheeks
+  const muzzle = blob(fur, 0.075, 0.055, 0.06, 0, -0.06, 0.14);
+  head.add(muzzle);
+  const earGeo = new THREE.ConeGeometry(0.065, 0.14, 4);
+  const ears = [-1, 1].map((side) => {
     const ear = new THREE.Mesh(earGeo, fur);
-    ear.position.set(side * 0.1, 0.17, -0.02);
+    ear.position.set(side * 0.09, 0.14, -0.01);
     ear.rotation.z = -side * 0.25;
     head.add(ear);
-    const eye = new THREE.Mesh(sphere, mat(catLook.eyes, { emissive: catLook.eyes, emissiveIntensity: 0.25 }));
-    eye.scale.set(0.04, 0.045, 0.03);
-    eye.position.set(side * 0.08, 0.03, 0.16);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.08, 4), mat("#e8a0a0"));
+    inner.position.set(side * 0.088, 0.13, 0.02);
+    inner.rotation.z = -side * 0.25;
+    head.add(inner);
+    const eye = blob(mat(catLook.eyes, { emissive: catLook.eyes, emissiveIntensity: 0.25 }), 0.035, 0.04, 0.025, side * 0.07, 0.02, 0.135);
     head.add(eye);
-    const pupil = new THREE.Mesh(sphere, mat("#111111"));
-    pupil.scale.set(0.015, 0.035, 0.02);
-    pupil.position.set(side * 0.08, 0.03, 0.185);
-    head.add(pupil);
-  }
-  const nose = new THREE.Mesh(sphere, mat("#d77a8a"));
-  nose.scale.set(0.03, 0.022, 0.02);
-  nose.position.set(0, -0.03, 0.19);
-  head.add(nose);
-  // Prey carried in the mouth (R13, R20)
-  const carry = new THREE.Mesh(sphere, mat("#8a6a50"));
-  carry.scale.set(0.07, 0.05, 0.12);
-  carry.position.set(0, -0.12, 0.2);
-  carry.visible = false;
-  head.add(carry);
+    head.add(blob(mat("#111111"), 0.012, 0.032, 0.015, side * 0.07, 0.02, 0.157));
+    return ear;
+  });
+  head.add(blob(mat("#d77a8a"), 0.025, 0.018, 0.016, 0, -0.035, 0.195));   // nose
 
-  // Legs swing from the hip
-  const legGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.36, 8);
-  legGeo.translate(0, -0.18, 0);
+  // Prey carried in the mouth (R27): one model per kind, shown when carrying it
+  const carryModels = { mouse: makeMouseModel(), squirrel: makeSquirrelModel(), fish: makeFishModel() };
+  for (const kind in carryModels) {
+    const m = carryModels[kind];
+    m.position.set(0.02, -0.16, 0.2);
+    m.rotation.set(0, Math.PI / 2, 0.2);
+    m.scale.setScalar(kind === "squirrel" ? 0.8 : 1);
+    m.visible = false;
+    head.add(m);
+  }
+
+  // Legs swing from the hip; short and thick, with paws (R21)
+  const legLength = 0.3;
+  const legGeo = new THREE.CylinderGeometry(0.052, 0.045, legLength, 8);
+  legGeo.translate(0, -legLength / 2, 0);
   const legs = [];
-  for (const [x, z, phase] of [[-0.11, 0.3, 0], [0.11, 0.3, Math.PI], [-0.11, -0.3, Math.PI], [0.11, -0.3, 0]]) {
-    const leg = new THREE.Mesh(legGeo, x < 0 ? dark : fur);
-    leg.position.set(x, 0.38, z);
+  const paws = [];
+  for (const [x, z, phase] of [[-0.1, 0.28, 0], [0.1, 0.28, Math.PI], [-0.11, -0.26, Math.PI], [0.11, -0.26, 0]]) {
+    const leg = new THREE.Group();
+    leg.position.set(x, 0.36, z);
     leg.userData.phase = phase;
+    leg.add(new THREE.Mesh(legGeo, fur));
+    const paw = blob(fur, 0.055, 0.035, 0.07, 0, -legLength - 0.005, 0.02);
+    leg.add(paw);
     cat.add(leg);
     legs.push(leg);
+    paws.push(paw);
   }
 
-  // Tail: two pieces so it can curve and swish
-  const tailGeo = new THREE.CylinderGeometry(0.04, 0.05, 0.4, 8);
-  tailGeo.translate(0, 0.2, 0);
-  const tail = new THREE.Mesh(tailGeo, fur);
-  tail.position.set(0, 0.55, -0.44);
-  tail.rotation.x = -0.9;
-  body.add(tail);
-  const tailTip = new THREE.Mesh(tailGeo, catLook.pattern === "Solid" ? fur : dark);
-  tailTip.position.set(0, 0.4, 0);
-  tailTip.rotation.x = 0.7;
-  tailTip.rotation.z = 0.5;
-  tail.add(tailTip);
+  // Tail: 8 segments, each one a pivot that can bend (R28)
+  const tailRoot = new THREE.Group();
+  tailRoot.position.set(0, 0.5, -0.43);
+  body.add(tailRoot);
+  const tailPivots = [];
+  const tailSegments = [];
+  let parent = tailRoot;
+  for (let i = 0; i < TAIL_SEGMENTS; i++) {
+    const pivot = new THREE.Group();
+    if (i > 0) pivot.position.y = TAIL_LENGTH;
+    parent.add(pivot);
+    const r0 = 0.045 - i * 0.0028;
+    const geo = new THREE.CylinderGeometry(r0 - 0.0028, r0, TAIL_LENGTH * 1.15, 8);
+    geo.translate(0, TAIL_LENGTH / 2, 0);
+    const seg = new THREE.Mesh(geo, fur);
+    pivot.add(seg);
+    tailPivots.push(pivot);
+    tailSegments.push(seg);
+    parent = pivot;
+  }
+
+  // ---------- Patterns (R21) ----------
+  if (pattern === "Tabby") {
+    // Stripes that hug the body: each is half a ring around the torso where it is that wide
+    const ring = new THREE.TorusGeometry(1, 0.1, 6, 16, Math.PI);
+    for (const z of [-0.3, -0.16, -0.02, 0.12, 0.25]) {
+      const k = Math.sqrt(1 - (z / 0.42) ** 2);
+      const stripe = new THREE.Mesh(ring, dark);
+      stripe.scale.set(0.21 * k * 1.03, 0.2 * k * 1.03, 0.2);
+      stripe.position.set(0, 0.42, z);
+      addPiece(body, stripe, "stripe");
+    }
+    for (const x of [-0.05, 0, 0.05]) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.012, 0.09), dark);
+      s.position.set(x, 0.145, 0.02);
+      addPiece(head, s, "head stripe");
+    }
+    tailPivots.forEach((p, i) => {
+      if (i % 2 === 0) return;
+      const r = new THREE.Mesh(new THREE.TorusGeometry(0.045 - i * 0.0028, 0.012, 6, 12), dark);
+      r.rotation.x = Math.PI / 2;
+      r.position.y = TAIL_LENGTH / 2;
+      addPiece(p, r, "tail ring");
+    });
+  } else if (pattern === "Patches") {
+    for (const [x, y, z, s] of [[0.13, 0.47, 0.08, 0.1], [-0.14, 0.43, -0.15, 0.09], [0, 0.27, 0.05, 0.13]]) {
+      addPiece(body, blob(white, s * 0.6, s * 0.6, s), "patch");
+    }
+    patternPieces.forEach((m, i) => m.position.set(...[[0.13, 0.47, 0.08], [-0.14, 0.43, -0.15], [0, 0.27, 0.05]][i]));
+  } else if (pattern === "Tuxedo") {
+    addPiece(body, blob(white, 0.15, 0.17, 0.1, 0, 0.42, 0.37), "chest");
+    addPiece(head, blob(white, 0.082, 0.062, 0.065, 0, -0.065, 0.145), "muzzle");
+    paws.forEach((p) => addPiece(p.parent, blob(white, 0.062, 0.04, 0.078, 0, -legLength - 0.005, 0.02), "paw"));
+  } else if (pattern === "Calico") {
+    const ginger = mat(FURS.Ginger);
+    const black = mat(FURS.Black);
+    addPiece(body, blob(white, 0.16, 0.08, 0.32, 0, 0.27, 0), "belly");
+    for (const [m, x, y, z, s] of [[ginger, 0.14, 0.48, 0.12, 0.1], [black, -0.13, 0.5, -0.05, 0.11],
+                                    [ginger, -0.1, 0.45, -0.28, 0.09], [black, 0.12, 0.44, -0.22, 0.08]]) {
+      addPiece(body, blob(m, s * 0.7, s * 0.6, s), "patch").position.set(x, y, z);
+    }
+    addPiece(head, blob(ginger, 0.09, 0.07, 0.08, 0.08, 0.06, 0.02), "patch");
+    addPiece(head, blob(black, 0.08, 0.07, 0.08, -0.08, 0.05, 0), "patch");
+  } else if (pattern === "Spotted") {
+    // Spots placed on the torso's surface
+    for (let i = 0; i < 14; i++) {
+      const z = -0.32 + (i % 7) * 0.1;
+      const k = Math.sqrt(1 - (z / 0.42) ** 2);
+      const a = (i < 7 ? 0.5 : 2.6) + (i % 3) * 0.25;   // around the body, on both sides and the back
+      const spot = blob(dark, 0.035, 0.03, 0.04, Math.cos(a) * 0.21 * k, 0.42 + Math.sin(a) * 0.2 * k, z);
+      addPiece(body, spot, "spot");
+    }
+  } else if (pattern === "Colorpoint") {
+    addPiece(head, blob(dark, 0.09, 0.075, 0.07, 0, -0.04, 0.12), "face");
+    ears.forEach((ear) => {
+      const point = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.15, 4), dark);
+      point.position.copy(ear.position);
+      point.rotation.copy(ear.rotation);
+      addPiece(head, point, "ear");
+    });
+    paws.forEach((p) => addPiece(p.parent, blob(dark, 0.062, 0.042, 0.078, 0, -legLength - 0.005, 0.02), "paw"));
+    tailPivots.slice(4).forEach((p, i) => {
+      const r0 = 0.05 - (i + 4) * 0.0028;
+      const geo = new THREE.CylinderGeometry(r0 - 0.003, r0, TAIL_LENGTH * 1.1, 8);
+      geo.translate(0, TAIL_LENGTH / 2, 0);
+      addPiece(p, new THREE.Mesh(geo, dark), "tail");
+    });
+  }
 
   // A red cross over a hurt cat (R18)
   const hurt = new THREE.Group();
@@ -127,16 +224,50 @@ function makeCatModel(catLook) {
   const down = new THREE.Mesh(bar, red);
   down.rotation.z = Math.PI / 2;
   hurt.add(across, down);
-  hurt.position.set(0, 1.25, 0);
+  hurt.position.set(0, 1.2, 0);
   hurt.visible = false;
   cat.add(hurt);
 
-  cat.userData = { body, head, legs, tail, carry, hurt };
+  cat.userData = { body, head, legs, paws, torso, tailPivots, tailSegments, patternPieces, carryModels, hurt,
+                   legLength, bodyLength: 0.84 };
   cat.rotation.order = "YXZ";   // turn first, then tilt (for climbing)
   return cat;
 }
 
-// Move and animate a cat model. pose: { x, y, z, heading, size, moving, walk, crouch, attack, climbing, lying }
+// R28: how the tail is held for what the cat is doing.
+// lift: angle above straight back (PI/2 = straight up, negative = hanging down); curl: bend per segment;
+// tipCurl: extra bend of the last segments (the question-mark tip); swish/speed: side-to-side motion;
+// puff: how fluffed up it is; side: swing to the cat's left (+) or right (-) when turning.
+function tailPoseFor(s) {
+  let p;
+  if (s.lying) p = { lift: -0.15, curl: 0.02, tipCurl: 0, swish: 0.04, speed: 1, puff: 1 };
+  else if (s.fighting) p = { lift: 0.55, curl: -0.04, tipCurl: 0, swish: 0.9, speed: 9, puff: 1.6 };
+  else if (s.climbing) p = { lift: -1.2, curl: 0.03, tipCurl: 0, swish: 0.12, speed: 2, puff: 1 };
+  else if (s.swimming) p = { lift: 0.05, curl: 0, tipCurl: 0, swish: 0.3, speed: 2.5, puff: 1 };
+  else if (s.crouch) p = { lift: 0, curl: 0, tipCurl: 0.1, swish: 0.25, speed: 7, puff: 1 };
+  else if (s.running) p = { lift: 0.12, curl: 0, tipCurl: 0, swish: 0.08, speed: 3, puff: 1 };
+  else if (s.moving) p = { lift: 1.35, curl: 0.02, tipCurl: 0.35, swish: 0.15, speed: 2, puff: 1 };
+  else p = { lift: 0.9, curl: 0.1, tipCurl: 0.12, swish: 0.35, speed: 1.4, puff: 1 };
+  p.side = -(s.turnVel || 0) * 0.25;
+  return p;
+}
+
+function poseTail(model, pose, t) {
+  const tail = tailPoseFor(pose);
+  const pivots = model.userData.tailPivots;
+  // The root points straight back at lift 0 and straight up at lift PI/2
+  pivots[0].rotation.x = tail.lift - Math.PI / 2;
+  pivots.forEach((p, i) => {
+    const along = (i + 1) / pivots.length;   // more movement towards the tip
+    if (i > 0) p.rotation.x = tail.curl + (i >= pivots.length - 3 ? tail.tipCurl : 0);
+    p.rotation.z = tail.side / pivots.length + Math.sin(t * tail.speed - i * 0.6) * tail.swish * along / 3;
+  });
+  model.userData.tailSegments.forEach((seg) => seg.scale.set(tail.puff, 1, tail.puff));
+}
+
+// Move and animate a cat model.
+// pose: { x, y, z, heading, size, moving, running, walk, crouch, attack, climbing, swimming, lying,
+//         fighting, turnVel, carrying, dropping, hurt }
 function poseCat(model, pose, t) {
   const parts = model.userData;
   model.position.set(pose.x, pose.y, pose.z);
@@ -144,18 +275,22 @@ function poseCat(model, pose, t) {
   model.rotation.x = pose.climbing ? -1.25 : 0;
   model.rotation.z = pose.lying ? 1.3 : 0;
   model.scale.setScalar(pose.size);
-  parts.body.position.y = pose.crouch ? -0.12 : (pose.moving ? Math.abs(Math.sin(pose.walk)) * 0.03 : 0);
+  parts.body.position.y = pose.crouch ? -0.1 : (pose.moving ? Math.abs(Math.sin(pose.walk || 0)) * 0.03 : 0);
   parts.legs.forEach((leg, i) => {
-    leg.rotation.x = pose.moving ? Math.sin(pose.walk + leg.userData.phase) * 0.6 : 0;
+    leg.rotation.x = pose.moving ? Math.sin((pose.walk || 0) + leg.userData.phase) * 0.6 : 0;
     if (pose.attack && i === 1) leg.rotation.x = -1.3;   // swipe with a front paw
   });
-  parts.tail.rotation.z = Math.sin(t * 3) * 0.35;
-  parts.tail.rotation.x = pose.crouch ? -1.4 : -0.9;
-  parts.carry.visible = !!pose.carrying;
+  poseTail(model, pose, t);
+  // Head held a little higher while carrying prey, and dipped while dropping it (R27)
+  parts.head.rotation.x = pose.carrying ? -0.25 : (pose.dropping > 0 ? 0.5 * pose.dropping / DROP_TIME : 0);
+  for (const kind in parts.carryModels) parts.carryModels[kind].visible = pose.carrying === kind;
   parts.hurt.visible = !!pose.hurt;
   parts.hurt.rotation.y = t * 2;
 }
 
+// ======================================================
+// Prey models
+// ======================================================
 function makeSquirrelModel() {
   const brown = mat("#a0522d");
   const sphere = new THREE.SphereGeometry(1, 12, 10);
@@ -197,6 +332,28 @@ function makeMouseModel() {
   return m;
 }
 
+function makeFishModel() {
+  const silver = new THREE.MeshPhongMaterial({ color: "#b8c4cc", shininess: 90 });
+  const f = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), silver);
+  body.scale.set(0.04, 0.06, 0.14);
+  body.position.y = 0.06;
+  f.add(body);
+  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.07, 3), silver);
+  fin.rotation.x = Math.PI / 2;
+  fin.position.set(0, 0.06, -0.16);
+  f.add(fin);
+  f.userData.tail = fin;
+  return f;
+}
+
+function makePreyModel(kind) {
+  if (kind === "mouse") return makeMouseModel();
+  if (kind === "squirrel") return makeSquirrelModel();
+  if (kind === "fish") return makeFishModel();
+  return makeBeetleModel();
+}
+
 function makeBeetleModel() {
   const b = new THREE.Group();
   const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshPhongMaterial({ color: "#1d2a40", shininess: 90 }));
@@ -214,17 +371,162 @@ function makeShadow(radius) {
   return m;
 }
 
-// A den: a low bramble dome with a dark entrance facing the middle of camp (R20)
-function makeDen(den, color) {
+// ======================================================
+// Huts (R25): a bramble dome with a doorway, a mossy nest inside
+// ======================================================
+function makeHut(h) {
   const g = new THREE.Group();
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(color, { flatShading: true }));
-  dome.scale.set(1, 0.8, 1);
+  // The dome leaves a gap around local -x; the group is turned so the gap faces the door
+  const gap = HUT_DOOR + 0.04;
+  const domeGeo = new THREE.SphereGeometry(h.R, 24, 10, gap, Math.PI * 2 - gap * 2, 0, Math.PI / 2);
+  const dome = new THREE.Mesh(domeGeo, mat(h.id === "medicine" ? "#4a6a3a" : "#5a4a30", { flatShading: true, side: THREE.DoubleSide }));
+  dome.scale.y = 0.75;
   g.add(dome);
-  const door = new THREE.Mesh(new THREE.CircleGeometry(0.45, 12), new THREE.MeshBasicMaterial({ color: "#1a120c" }));
-  door.position.set(0, 0.4, 1.38);
-  g.add(door);
-  g.position.set(den.x, 0, den.z);
+  // A few brambles on top, so it doesn't look like a smooth bowl
+  for (let k = 0; k < 6; k++) {
+    const a = gap + 0.4 + k * 0.9;
+    const twig = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 0), mat("#4a3a22", { flatShading: true }));
+    twig.position.set(-Math.cos(a) * h.R * 0.75, h.R * 0.55, Math.sin(a) * h.R * 0.75);
+    g.add(twig);
+  }
+  const nest = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.22, 6, 14), mat("#6a8a3a", { flatShading: true }));
+  nest.rotation.x = Math.PI / 2;
+  nest.position.set(0.6, 0.12, 0);
+  g.add(nest);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(h.R - 0.1, 20), mat("#5a4a32"));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0.02;
+  g.add(floor);
+  g.position.set(h.x, 0, h.z);
+  g.rotation.y = Math.atan2(Math.cos(h.door), -Math.sin(h.door));
+  g.userData = { nest, doorway: true };
   return g;
+}
+
+// ======================================================
+// Grass (R24): blades bend in segments, darker at the root; swaying is done on the graphics card
+// ======================================================
+function makeBladeGeometry() {
+  const levels = 5;
+  const positions = [];
+  const colors = [];
+  const vertex = (x, y) => {
+    positions.push(x, y, 0.18 * y * y);              // a gentle forward curve
+    const shade = 0.45 + 0.6 * y;                    // dark root, light tip
+    colors.push(shade, shade, shade);
+  };
+  for (let j = 0; j < levels; j++) {
+    const y0 = j / levels;
+    const y1 = (j + 1) / levels;
+    const w0 = 0.035 * (1 - y0);
+    const w1 = 0.035 * (1 - y1);
+    if (j === levels - 1) {
+      vertex(-w0, y0); vertex(w0, y0); vertex(0, 1);  // the pointed tip
+    } else {
+      vertex(-w0, y0); vertex(w0, y0); vertex(w1, y1);
+      vertex(-w0, y0); vertex(w1, y1); vertex(-w1, y1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Same rule as the grass shader: no grass in water, on camp ground, or past the edge of the world
+function grassAllowedAt(x, z) {
+  if (WATERS.some((w) => x > w.x0 - 0.5 && x < w.x1 + 0.5)) return false;
+  if (Math.abs(x) > WORLD_HALF || Math.abs(z) > WORLD_HALF) return false;
+  return !Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < GRASS_CAMP_RADIUS);
+}
+
+// Grass colour for each quarter of the world, in the order the shader uses
+function grassColorList() {
+  const order = ["ThunderClan", "ShadowClan", "RiverClan", "WindClan"];   // x<0 z<0, x<0 z>0, x>0 z<0, x>0 z>0
+  return order.map((c) => new THREE.Color(PLACES[CLANS[c].biome].grass));
+}
+
+function makeGrass(random) {
+  const geo = makeBladeGeometry();
+  const uniforms = {
+    uTime: { value: 0 },
+    uCenter: { value: new THREE.Vector2() },
+    uWindow: { value: GRASS_WINDOW },
+    uColors: { value: grassColorList() },
+    uWaters: { value: new THREE.Vector4(RIVER_X0, RIVER_X1, STREAM_X0, STREAM_X1) },
+    uCamps: { value: Object.keys(CLANS).map((c) => new THREE.Vector2(campOf(c).x, campOf(c).z)) },
+    uCampRadius: { value: GRASS_CAMP_RADIUS },
+    uWorldHalf: { value: WORLD_HALF },
+  };
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  material.userData.wind = true;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = `
+      uniform float uTime;
+      uniform vec2 uCenter;
+      uniform float uWindow;
+      uniform vec3 uColors[4];
+      uniform vec4 uWaters;
+      uniform vec2 uCamps[4];
+      uniform float uCampRadius;
+      uniform float uWorldHalf;
+      // Where this blade stands: its spot in the square, moved to the square around the cat
+      vec2 grassBase() {
+        vec2 o = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
+        vec2 start = uCenter - uWindow * 0.5;
+        return start + mod(o - start, uWindow);
+      }
+      float grassAllowed(vec2 p) {
+        if (p.x > uWaters.x - 0.5 && p.x < uWaters.y + 0.5) return 0.0;
+        if (p.x > uWaters.z - 0.5 && p.x < uWaters.w + 0.5) return 0.0;
+        if (abs(p.x) > uWorldHalf || abs(p.y) > uWorldHalf) return 0.0;
+        for (int i = 0; i < 4; i++) { if (distance(p, uCamps[i]) < uCampRadius) return 0.0; }
+        return 1.0;
+      }
+      vec3 grassTint(vec2 p) {
+        if (p.x < 0.0) return p.y < 0.0 ? uColors[0] : uColors[1];
+        return p.y < 0.0 ? uColors[2] : uColors[3];
+      }
+    ` + shader.vertexShader
+      .replace("#include <color_vertex>", "#include <color_vertex>\n vColor.xyz *= grassTint(grassBase());")
+      .replace("#include <begin_vertex>", "vec3 transformed = vec3(position);\n transformed.y *= grassAllowed(grassBase());")
+      .replace("#include <project_vertex>", `
+        vec2 gb = grassBase();
+        vec4 mvPosition = instanceMatrix * vec4(transformed, 1.0);
+        mvPosition.xz += gb - vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
+        // Wind: slow waves across the field plus a quick flutter; the tip moves most
+        float h = position.y * position.y;
+        float wave = sin(uTime * 1.6 + gb.x * 0.15 + gb.y * 0.1) * 0.35 + sin(uTime * 3.1 + gb.x * 1.7 + gb.y * 1.3) * 0.08;
+        mvPosition.xz += vec2(0.8, 0.45) * wave * h * 0.35;
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;
+      `);
+  };
+
+  const count = GRASS_CLUMPS * BLADES_PER_CLUMP;
+  const grass = new THREE.InstancedMesh(geo, material, count);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  let i = 0;
+  for (let c = 0; c < GRASS_CLUMPS; c++) {
+    const cx = random() * GRASS_WINDOW;
+    const cz = random() * GRASS_WINDOW;
+    for (let b = 0; b < BLADES_PER_CLUMP; b++) {
+      const a = random() * Math.PI * 2;
+      const r = random() * 0.25;
+      e.set((random() - 0.5) * 0.5, random() * Math.PI * 2, (random() - 0.5) * 0.5);
+      q.setFromEuler(e);
+      const h = 0.3 + random() * 0.45;
+      m.compose(new THREE.Vector3(cx + Math.sin(a) * r, 0, cz + Math.cos(a) * r), q, new THREE.Vector3(1, h, 1));
+      grass.setMatrixAt(i++, m);
+    }
+  }
+  grass.frustumCulled = false;
+  grass.userData.clumps = GRASS_CLUMPS;
+  return { grass, uniforms };
 }
 
 // ======================================================
@@ -281,6 +583,11 @@ function buildScene() {
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(c.sx * WORLD_HALF / 2, 0, c.sz * WORLD_HALF / 2);
     scene.add(ground);
+    // Bare earth in the camp
+    const earth = new THREE.Mesh(new THREE.CircleGeometry(GRASS_CAMP_RADIUS + 0.5, 32), mat("#7a6a4a"));
+    earth.rotation.x = -Math.PI / 2;
+    earth.position.set(campOf(clan).x, 0.01, campOf(clan).z);
+    scene.add(earth);
   }
 
   // The river and the stream
@@ -304,7 +611,7 @@ function buildScene() {
     const x = -WORLD_HALF + random() * WORLD_HALF * 2;
     const z = -WORLD_HALF + random() * WORLD_HALF * 2;
     const place = biomeAt(x, z);
-    const nearCamp = Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < 12);
+    const nearCamp = Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < CAMP_CLEARING);
     if (nearRiver(x) || nearCamp) continue;
     if (place === "marsh" && i % 3 === 0) {
       // Marsh pools with reeds (ShadowClan, R6)
@@ -379,11 +686,11 @@ function buildScene() {
         ? [[0, 0.3, 0, 1], [-0.7, -0.3, 0.2, 0.8], [0.7, -0.3, -0.2, 0.8], [0, -0.4, 0.7, 0.75]]   // droopy
         : [[0, 0.5, 0, 1], [-0.8, 0, 0.3, 0.75], [0.8, 0.1, -0.2, 0.75], [0.1, 0.2, 0.9, 0.7], [0, 1.1, -0.2, 0.65]];
       for (const [bx, by, bz, s] of blobs) {
-        const blob = new THREE.Mesh(blobGeo, leafMats[place][Math.floor(random() * 3)]);
-        blob.scale.set(size * s, size * s * (t.kind === "willow" ? 1.3 : 1), size * s);
-        blob.position.set(bx * size, by * size, bz * size);
-        blob.userData.base = blob.position.clone();
-        top.add(blob);
+        const leaves = new THREE.Mesh(blobGeo, leafMats[place][Math.floor(random() * 3)]);
+        leaves.scale.set(size * s, size * s * (t.kind === "willow" ? 1.3 : 1), size * s);
+        leaves.position.set(bx * size, by * size, bz * size);
+        leaves.userData.base = leaves.position.clone();
+        top.add(leaves);
       }
     }
     top.userData.phase = t.phase;
@@ -391,51 +698,28 @@ function buildScene() {
     treeTops.push(top);
   }
 
-  // Waving grass: thin blades drawn as one InstancedMesh, kept in a square around the cat
-  const bladeGeo = new THREE.ConeGeometry(0.04, 0.45, 3);
-  bladeGeo.translate(0, 0.225, 0);
-  const blades = [];
-  for (let i = 0; i < 3500; i++) {
-    blades.push({ ox: random() * GRASS_WINDOW, oz: random() * GRASS_WINDOW, h: 0.45 + random() * 0.55, phase: random() * 6 });
-  }
-  const grass = new THREE.InstancedMesh(bladeGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), blades.length);
-  grass.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(blades.length * 3), 3);
-  grass.frustumCulled = false;
+  // Grass (R24)
+  const { grass, uniforms: grassUniforms } = makeGrass(random);
   scene.add(grass);
-  const grassColors = {};
-  for (const name in PLACES) grassColors[name] = new THREE.Color(PLACES[name].grass);
 
-  // Camps: a ring of stones, a big rock (Highrock), and dens for every clan (R20)
+  // Rocks from the game rules (R23): camp stones and the Highrocks
   const stoneMat = mat("#8a8a80", { flatShading: true });
   const stoneGeo = new THREE.DodecahedronGeometry(1, 0);
+  for (const r of rocks) {
+    const rock = new THREE.Mesh(stoneGeo, stoneMat);
+    if (r.kind === "highrock") rock.scale.set(r.r, 1.8, r.r * 0.9);
+    else rock.scale.set(r.r, r.r * 0.7, r.r);
+    rock.position.set(r.x, r.kind === "highrock" ? 0.9 : r.r * 0.3, r.z);
+    rock.rotation.y = r.x + r.z;
+    scene.add(rock);
+  }
+
+  // Huts in every camp (R25); your own are your dens
   let denModels = [];
-  for (const clan in CLANS) {
-    const camp = campOf(clan);
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2;
-      const stone = new THREE.Mesh(stoneGeo, stoneMat);
-      stone.scale.setScalar(0.35 + random() * 0.25);
-      stone.position.set(camp.x + Math.sin(a) * 9, 0.15, camp.z + Math.cos(a) * 9);
-      scene.add(stone);
-    }
-    const highrock = new THREE.Mesh(stoneGeo, stoneMat);
-    const rockSpot = spotFor(clan, 0, -9);
-    highrock.scale.set(2.2, 1.8, 2);
-    highrock.position.set(rockSpot.x, 0.9, rockSpot.z);
-    scene.add(highrock);
-    const models = DEN_SPOTS.filter((d) => d.id !== "leader").map((d) => {
-      const den = makeDen(spotFor(clan, ...d.spot), d.id === "medicine" ? "#4a6a3a" : "#5a4a30");
-      den.lookAt(camp.x, 0, camp.z);
-      scene.add(den);
-      return den;
-    });
-    // The leader's den is a dark hollow under the Highrock
-    const leaderSpot = spotFor(clan, ...DEN_SPOTS.find((d) => d.id === "leader").spot);
-    const hollow = new THREE.Mesh(new THREE.CircleGeometry(0.6, 12), new THREE.MeshBasicMaterial({ color: "#1a120c" }));
-    hollow.position.set(leaderSpot.x, 0.6, leaderSpot.z);
-    hollow.lookAt(camp.x, 0.6, camp.z);
-    scene.add(hollow);
-    if (clan === clanName) denModels = models.concat([hollow]);
+  for (const h of huts) {
+    const model = makeHut(h);
+    scene.add(model);
+    if (h.clan === clanName) denModels.push(model);
   }
 
   // The fresh-kill pile in your camp
@@ -493,9 +777,9 @@ function buildScene() {
   scene.add(scentDots);
 
   Object.assign(view, {
-    scene, hemi, sun, sunBall, moonBall, stars, treeTops, grass, blades, grassColors, herbModels, denModels, pileModel,
+    scene, hemi, sun, sunBall, moonBall, stars, treeTops, grass, grassUniforms, herbModels, denModels, pileModel,
     playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels,
-    preyModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName,
+    preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
   });
 }
 
@@ -540,61 +824,48 @@ function updateSky() {
   view.hemi.color = mixColors("#5a6fa8", "#ffffff", light);
 }
 
-function updateTreesAndGrass(t) {
+function updateTreesAndGrass(t, centre) {
   // Leaves sway gently (spec: tree leaves wave). Only trees near the cat need to move.
   for (const top of view.treeTops) {
-    if (Math.abs(top.position.x - player.x) > 80 || Math.abs(top.position.z - player.z) > 80) continue;
+    if (Math.abs(top.position.x - centre.x) > 80 || Math.abs(top.position.z - centre.z) > 80) continue;
     const p = top.userData.phase;
     top.rotation.z = Math.sin(t * 1.3 + p) * 0.03;
     top.rotation.x = Math.sin(t * 1.1 + p * 2) * 0.02;
-    for (const blob of top.children) {
-      if (!blob.userData.base) continue;
-      blob.position.x = blob.userData.base.x + Math.sin(t * 2 + p + blob.userData.base.z) * 0.08;
+    for (const leaves of top.children) {
+      if (!leaves.userData.base) continue;
+      leaves.position.x = leaves.userData.base.x + Math.sin(t * 2 + p + leaves.userData.base.z) * 0.08;
     }
   }
-  // Grass: each blade keeps its place in the world, and wraps around to stay near the cat.
-  // A slow wave moves across the field, plus a little flutter per blade.
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const e = new THREE.Euler();
-  const s = new THREE.Vector3();
-  const pos = new THREE.Vector3();
-  const half = GRASS_WINDOW / 2;
-  const wrap = (offset, centre) => centre - half + ((((offset - (centre - half)) % GRASS_WINDOW) + GRASS_WINDOW) % GRASS_WINDOW);
-  view.blades.forEach((b, i) => {
-    const x = wrap(b.ox, player.x);
-    const z = wrap(b.oz, player.z);
-    const hidden = inRiver(x) || Math.abs(x) > WORLD_HALF || Math.abs(z) > WORLD_HALF;
-    const sway = Math.sin(t * 2.2 + x * 0.3) * 0.25 + Math.sin(t * 3.1 + b.phase) * 0.08;
-    e.set(sway * 0.5, b.phase, sway);
-    q.setFromEuler(e);
-    pos.set(x, 0, z);
-    s.set(1, hidden ? 0 : b.h, 1);
-    m.compose(pos, q, s);
-    view.grass.setMatrixAt(i, m);
-    view.grass.setColorAt(i, view.grassColors[biomeAt(x, z)]);
-  });
-  view.grass.instanceMatrix.needsUpdate = true;
-  view.grass.instanceColor.needsUpdate = true;
+  // Grass (R24): the shader does the swaying and keeps the blades around the cat
+  view.grassUniforms.uTime.value = t;
+  view.grassUniforms.uCenter.value.set(centre.x, centre.z);
+}
+
+// What the player's cat is doing, for its pose and tail (R28)
+function playerPose(size, t) {
+  const swimming = inRiver(player.x) && !player.climbing;
+  const rolling = player.dodgeTimer > 0;
+  return {
+    x: player.x, y: player.y - (swimming ? 0.25 * size : 0), z: player.z, heading: player.heading, size,
+    moving: player.moving || rolling || (player.climbing && player.walk > 0), running: player.running,
+    walk: rolling ? t * 30 : player.walk, crouch: player.crouching || rolling || player.recover > 0,
+    attack: player.attackTimer > 0, climbing: !!player.climbing, swimming,
+    fighting: fightingEnemies().some((e) => distance(e, player) < 6), turnVel: player.turnVel,
+    carrying: player.carrying, dropping: player.dropTimer,
+  };
 }
 
 function updateCats(t) {
   const size = catSize();
   const flicker = (timer) => timer > 0 && Math.floor(t * 20) % 2 === 0;
 
-  // Player (lower in the water, so it looks like it is swimming)
-  const swimDrop = inRiver(player.x) && !player.climbing ? 0.25 * size : 0;
-  const rolling = player.dodgeTimer > 0;
-  poseCat(view.playerModel, {
-    x: player.x, y: player.y - swimDrop, z: player.z, heading: player.heading, size,
-    moving: player.moving || rolling || (player.climbing && player.walk > 0), walk: rolling ? t * 30 : player.walk,
-    crouch: player.crouching || rolling || player.recover > 0, attack: player.attackTimer > 0,
-    climbing: !!player.climbing, carrying: player.carrying,
-  }, t);
+  // Player
+  const pose = playerPose(size, t);
+  poseCat(view.playerModel, pose, t);
   view.playerModel.visible = playing && !flicker(player.hurtTimer);
   view.playerShadow.position.set(player.x, 0.04, player.z);
   view.playerShadow.scale.setScalar(size * Math.max(0.3, 1 - player.y * 0.15));
-  view.playerShadow.visible = playing && !swimDrop;
+  view.playerShadow.visible = playing && !pose.swimming;
 
   // Rogue
   const rogueShown = playing && (stage >= 2 || rogue.state === "fighting") && rogue.state !== "gone";
@@ -603,7 +874,7 @@ function updateCats(t) {
   view.rogueShadow.position.set(rogue.x, 0.04, rogue.z);
   view.rogueShadow.visible = rogueShown;
 
-  // Other clans' patrols (R16)
+  // Other clans' cats: patrols (R16) and camp cats (R29)
   patrols.forEach((c, i) => {
     const model = view.patrolModels[i];
     if (!model) return;
@@ -611,7 +882,7 @@ function updateCats(t) {
     model.visible = playing && c.state !== "resting" && !flicker(c.hurtTimer);
   });
 
-  // Camp cats, mentors (R16, R19)
+  // Your camp cats and mentors (R16, R19)
   campCats.forEach((c, i) => {
     const model = view.campCatModels[i];
     if (!model) return;
@@ -636,11 +907,12 @@ function updateCats(t) {
 }
 
 function poseFighter(model, e, size, t) {
+  const fighting = e.state === "fighting";
   poseCat(model, {
-    x: e.x, y: 0, z: e.z, heading: e.heading, size,
-    moving: e.state === "fleeing" || e.moving || (e.state === "fighting" && e.windup <= 0 && e.stagger <= 0),
-    walk: e.walk, crouch: e.windup > 0.15 || e.stagger > 0, attack: e.windup > 0 && e.windup <= 0.15,
-    lying: e.stagger > 0 && Math.floor(t * 4) % 2 === 0,
+    x: e.x, y: 0, z: e.z, heading: e.heading, size, fighting,
+    moving: e.state === "fleeing" || e.moving || (fighting && e.windup <= 0 && e.stagger <= 0),
+    running: e.state === "fleeing", walk: e.walk, crouch: e.windup > 0.15 || e.stagger > 0,
+    attack: e.windup > 0 && e.windup <= 0.15, lying: e.stagger > 0 && Math.floor(t * 4) % 2 === 0,
   }, t);
 }
 
@@ -659,13 +931,30 @@ function updateCritters(t) {
   if (view.preyModels.length !== prey.length || view.preyModels.some((m, i) => m.userData.kind !== prey[i].kind)) {
     view.preyModels.forEach((m) => view.scene.remove(m));
     view.preyModels = prey.map((p) => {
-      const m = p.kind === "mouse" ? makeMouseModel() : makeBeetleModel();
+      const m = makePreyModel(p.kind);
       m.userData.kind = p.kind;
       view.scene.add(m);
       return m;
     });
   }
   prey.forEach((p, i) => place(view.preyModels[i], p));
+
+  // Prey dropped on the ground (R27), falling from the mouth
+  if (view.droppedModels.length !== dropped.length || view.droppedModels.some((m, i) => m.userData.kind !== dropped[i].kind)) {
+    view.droppedModels.forEach((m) => view.scene.remove(m));
+    view.droppedModels = dropped.map((d) => {
+      const m = makePreyModel(d.kind);
+      m.userData.kind = d.kind;
+      view.scene.add(m);
+      return m;
+    });
+  }
+  dropped.forEach((d, i) => {
+    const m = view.droppedModels[i];
+    m.visible = playing;
+    m.position.set(d.x, d.y, d.z);
+    m.rotation.set(d.fall * 6, d.x, Math.PI / 2 * (1 - d.fall / DROP_TIME));   // tumbles, then lies on its side
+  });
 }
 
 // R14: glowing dots along each prey's scent trail and on to the prey itself
@@ -711,22 +1000,29 @@ function updateCamp() {
   });
 }
 
+// R21: on the title screen the camera slowly circles the camp
+function titleCamera(t) {
+  const a = t * 0.1;
+  return { x: CAMP.x + Math.sin(a) * 18, y: 6, z: CAMP.z + Math.cos(a) * 18, lookX: CAMP.x, lookY: 1, lookZ: CAMP.z };
+}
+
 function renderFrame() {
   if (!view) return;
   if (view.builtFor !== clanName || view.campCatModels.length !== campCats.length ||
-      view.patrolModels.length !== patrols.length || view.herbModels.length !== herbs.length) {
-    buildScene();   // a new game with a different clan
+      view.patrolModels.length !== patrols.length || view.herbModels.length !== herbs.length ||
+      view.builtLook !== JSON.stringify(look)) {
+    buildScene();   // a new game with a different clan or cat
   }
   const t = time;
+  const cam = playing ? cameraFor() : titleCamera(t);
   updateSky();
-  updateTreesAndGrass(t);
+  updateTreesAndGrass(t, playing ? player : CAMP);
   updateCats(t);
   updateCritters(t);
   updateScent(t);
   updateCamp();
 
-  // R11/R12: the camera sits low and close behind the cat, swinging round smoothly
-  const cam = playing ? cameraFor() : { x: CAMP.x - 8, y: 3, z: CAMP.z - 10, lookX: CAMP.x, lookY: 1, lookZ: CAMP.z + 6 };
+  // R11/R12/R25: the camera sits low and close behind the cat (inside a hut when you are)
   view.camera.position.set(cam.x, cam.y, cam.z);
   view.camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
   view.renderer.render(view.scene, view.camera);
@@ -737,21 +1033,20 @@ function renderFrame() {
 // ======================================================
 function initPreview(canvas) {
   if (!has3D()) return;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(canvas.width, canvas.height, false);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#2f4a28");
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x334422, 0.8));
-  const light = new THREE.DirectionalLight(0xffffff, 0.8);
+  scene.add(new THREE.HemisphereLight(0xfff4e0, 0x334422, 0.9));
+  const light = new THREE.DirectionalLight(0xffffff, 0.7);
   light.position.set(2, 3, 2);
   scene.add(light);
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), mat("#4f8a35"));
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(0.9, 32), mat("#4f8a35"));
   floor.rotation.x = -Math.PI / 2;
   scene.add(floor);
-  const camera = new THREE.PerspectiveCamera(35, canvas.width / canvas.height, 0.1, 50);
-  camera.position.set(0, 1.1, 2.6);
-  camera.lookAt(0, 0.45, 0);
+  const camera = new THREE.PerspectiveCamera(32, canvas.width / canvas.height, 0.1, 50);
+  camera.position.set(0, 0.9, 2.3);
+  camera.lookAt(0, 0.42, 0);
   preview = { renderer, scene, camera, model: null, key: "" };
 }
 
@@ -764,7 +1059,6 @@ function renderPreview() {
     preview.scene.add(preview.model);
     preview.key = key;
   }
-  poseCat(preview.model, { x: 0, y: 0, z: 0, heading: time * 0.6, size: 1, moving: false, walk: 0,
-                           crouch: false, attack: false }, time);
+  poseCat(preview.model, { x: 0, y: 0, z: 0, heading: time * 0.6 + 0.6, size: 1 }, time);
   preview.renderer.render(preview.scene, preview.camera);
 }
