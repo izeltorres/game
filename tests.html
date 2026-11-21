@@ -21,13 +21,11 @@
   <div id="wrap">
     <canvas id="game" width="960" height="540"></canvas>
     <div id="hud" class="hidden">
-      <div id="cat-info"></div>
       <div id="task"></div>
       <div id="clock"></div>
       <div id="territory"></div>
       <div id="orders" class="hidden"></div>
       <div id="scent" class="hidden"></div>
-      <button id="new-cat">New cat</button>
       <div id="rogue-bar" class="bar hidden"><div class="fill"></div><span>Enemy</span></div>
       <div id="bars">
         <div id="health-bar" class="bar"><div class="fill"></div><span>Health</span></div>
@@ -55,8 +53,15 @@
       <h2>Choose your path</h2>
       <div id="role-options"></div>
     </div>
+    <div id="main-menu" class="hidden">
+      <h2>Paused</h2>
+      <button data-action="resume">Resume</button>
+      <button data-action="restart">Restart</button>
+      <button data-action="newcat">New cat</button>
+    </div>
     <div id="message" class="hidden"></div>
     <div id="menu">
+      <h1 id="game-title"></h1>
       <input id="name-input">
       <div id="fur-options"></div>
       <div id="eye-options"></div>
@@ -126,6 +131,7 @@
       prey.length = 0;
       squirrel.state = "hidden";
       squirrel.respawn = 9999;
+      trees.length = 0; // no trunk can push the cat around during a check
     }
     // x of the water in the player's own territory: a spot in it, and a spot on its bank
     function waterX() {
@@ -221,7 +227,7 @@
         // ---------- Menu ----------
         check("R1", "menu shows 6 fur colours", () => doc.querySelectorAll("#fur-options button").length === 6);
         check("R1", "menu shows 4 eye colours", () => doc.querySelectorAll("#eye-options button").length === 4);
-        check("R1", "menu shows 3 patterns", () => doc.querySelectorAll("#pattern-options button").length === 3);
+        check("R21", "menu shows 7 patterns", () => doc.querySelectorAll("#pattern-options button").length === 7);
         check("R2", "menu shows 4 clans", () => doc.querySelectorAll("#clan-options button").length === 4);
         check("R3", "name is cleaned", () => cleanName("fIRE 9") === "Fire" && cleanName("") === "Fire");
 
@@ -276,15 +282,15 @@
         // ---------- R4 Task 1: squirrel ----------
         quiet();
         check("R4", "squirrel runs if you walk up loudly", () => {
-          placeAt(0, 10);
-          const s = at(0, 14);
+          placeAt(0, -30);
+          const s = at(0, -26);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           step(0.1);
           return squirrel.state === "fleeing";
         });
         check("R4", "squirrel stays if you stalk", () => {
-          placeAt(0, 10);
-          const s = at(0, 11.9);
+          placeAt(0, -30);
+          const s = at(0, -28.1);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           keys.ShiftLeft = true;
           step(0.1);
@@ -390,16 +396,16 @@
         });
         check("R9", "catching prey after choosing a role is counted", () => {
           const before = stats.hunts;
-          quiet(); placeAt(0, 10);
-          const s = at(0, 11.5);
+          quiet(); placeAt(0, -30);
+          const s = at(0, -28.5);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return stats.hunts === before + 1;
         });
         check("R9", "a warrior with 5 prey and 3 fights becomes Leader, name ends in -star", () => {
           stats.hunts = 4; stats.fights = 3;
-          quiet(); placeAt(0, 10);
-          const s = at(0, 11.5);
+          quiet(); placeAt(0, -30);
+          const s = at(0, -28.5);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return role === "Leader" && rankName() === "Leader" && fullName() === "Stormstar";
@@ -428,8 +434,8 @@
           freshWithRole("Deputy");
           const okName = rankName() === "Deputy" && fullName() === catName + warriorSuffix;
           stats.hunts = 2; stats.fights = 2;
-          placeAt(0, 10);
-          const s = at(0, 11.5);
+          placeAt(0, -30);
+          const s = at(0, -28.5);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return okName && role === "Leader";
@@ -437,8 +443,8 @@
         check("R9", "a medicine cat never becomes leader", () => {
           freshWithRole("Medicine cat");
           stats.hunts = 20; stats.fights = 20;
-          placeAt(0, 10);
-          const s = at(0, 11.5);
+          placeAt(0, -30);
+          const s = at(0, -28.5);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return role === "Medicine cat" && rankName() === "Medicine cat";
@@ -559,8 +565,8 @@
         });
         check("R8", "catching a squirrel refills food", () => {
           stage = 0; player.food = 30; quiet();
-          placeAt(0, 10);
-          const s = at(0, 11.5);
+          placeAt(0, -30);
+          const s = at(0, -28.5);
           Object.assign(squirrel, { x: s.x, z: s.z, state: "idle", timer: 5 });
           keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return player.food === 30 + PREY_FOOD.squirrel;
@@ -687,25 +693,25 @@
         });
         const easyPrey = (kind, gap) => {
           quiet();
-          const spot = at(0, 10 + gap);
+          const spot = at(0, -30 + gap);
           const p = { kind, x: spot.x, z: spot.z, state: "idle", timer: 5, dirX: 0, dirZ: 1, hop: 0, respawn: 0, trail: [] };
           prey.push(p);
           return p;
         };
         check("R13", "a kit can catch a beetle (barely notices you)", () => {
-          stage = 0; player.food = 50; placeAt(0, 10);
+          stage = 0; player.food = 50; placeAt(0, -30);
           const b = easyPrey("beetle", 1.2);
           step(0.1); pressE();
           return b.state === "hidden" && player.food === 50 + PREY_FOOD.beetle && stage === 0;
         });
         check("R13", "a mouse runs if a kit walks up loudly", () => {
-          stage = 0; placeAt(0, 10);
+          stage = 0; placeAt(0, -30);
           const m = easyPrey("mouse", 2.5);
           step(0.1);
           return m.state === "fleeing";
         });
         check("R13", "a kit can catch a mouse by stalking", () => {
-          stage = 0; player.food = 50; placeAt(0, 10);
+          stage = 0; player.food = 50; placeAt(0, -30);
           const m = easyPrey("mouse", 1.4);
           keys.ShiftLeft = true; step(0.1); pressE(); releaseAll();
           return m.state === "hidden" && player.food === 50 + PREY_FOOD.mouse && stage === 0;
@@ -722,18 +728,18 @@
         });
         check("R13", "after choosing a role, mice count as prey but beetles don't", () => {
           freshWithRole("Warrior");
-          placeAt(0, 10);
+          placeAt(0, -30);
           easyPrey("beetle", 1.2); step(1 / 60); pressE();
           const afterBeetle = stats.hunts;
-          placeAt(0, 10);
+          placeAt(0, -30);
           easyPrey("mouse", 1.4); keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return afterBeetle === 0 && stats.hunts === 1;
         });
         check("R13", "with full food, caught prey is carried (beetles are still eaten)", () => {
-          player.food = 100; player.carrying = null; placeAt(0, 10);
+          player.food = 100; player.carrying = null; placeAt(0, -30);
           easyPrey("beetle", 1.2); step(1 / 60); pressE();
           const beetleCarried = player.carrying;
-          placeAt(0, 10);
+          placeAt(0, -30);
           easyPrey("mouse", 1.4); keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
           return beetleCarried === null && player.carrying === "mouse";
         });
@@ -741,7 +747,7 @@
         // ---------- R14 hunt by scent ----------
         freshWithRole("Warrior");
         check("R14", "holding Q scents the air; letting go stops", () => {
-          placeAt(0, 10);
+          placeAt(0, -30);
           keys.KeyQ = true; step(0.1);
           const on = player.scenting;
           releaseAll(); step(0.1);
@@ -834,7 +840,7 @@
           return player.hp === hp;
         });
         check("R16", "every other clan has a patrol of 2 cats", () =>
-          ["ThunderClan", "ShadowClan", "RiverClan"].every((c) => patrols.filter((p) => p.clan === c).length === 2) &&
+          ["ThunderClan", "ShadowClan", "RiverClan"].every((c) => patrols.filter((p) => p.clan === c && p.mode === "patrol").length === 2) &&
           patrols.every((p) => p.clan !== clanName));
         const shadowCat = () => patrols.find((p) => p.clan === "ShadowClan");
         check("R16", "a patrol cat attacks when you walk into its territory", () => {
@@ -1009,8 +1015,8 @@
           // WindClan has normal stealth, so a mouse 4 away hears a walking cat without the hunter mentor
           const mouseAt4 = (mentorId) => {
             freshApprentice(mentorId, "WindClan");
-            placeAt(0, 10);
-            const spot = at(0, 14);
+            placeAt(0, -30);
+            const spot = at(0, -26);
             prey.push({ kind: "mouse", x: spot.x, z: spot.z, state: "idle", timer: 9, dirX: 0, dirZ: 1, hop: 0, respawn: 0, trail: [] });
             step(0.1);
             return prey[0].state;
@@ -1100,7 +1106,7 @@
         check("R20", "the camp has a nursery, apprentices', warriors', medicine and leader's dens and a fresh-kill pile", () => {
           const ids = dens.map((d) => d.id).sort().join();
           return ids === "apprentices,leader,medicine,nursery,warriors" && freshKill === 3 &&
-            dens.every((d) => dist2d(d, CAMP) < 9);
+            dens.every((d) => dist2d(d, CAMP) < 12);
         });
         check("R20", "each rank has its own den", () => {
           const denFor = (s, r) => { stage = s; role = r; return myDen().id; };
@@ -1171,10 +1177,399 @@
           return sky(0.5) > sky(0) * 2;
         });
 
-        // ---------- New cat ----------
-        check("R1", "New cat goes back to the menu", () => {
-          doc.getElementById("new-cat").click();
-          return !playing && !doc.getElementById("menu").classList.contains("hidden");
+        // ================= Round 3 =================
+        // ---------- R21 title screen and patterns ----------
+        check("R21", "the game is called Cat Clans", () =>
+          GAME_NAME === "Cat Clans" && doc.getElementById("game-title").textContent === "Cat Clans");
+        check("R21", "every pattern can be chosen in the menu", () =>
+          PATTERNS.length === 7 && [...doc.querySelectorAll("#pattern-options button")].every((b, i) => {
+            b.click();
+            return look.pattern === PATTERNS[i];
+          }));
+        const hex = (m) => "#" + m.material.color.getHexString();
+        const bright = (m) => m.material.color.r + m.material.color.g + m.material.color.b;
+        const catWith = (pattern, fur) => makeCatModel({ fur: fur || FURS.Grey, eyes: EYES.Green, pattern });
+        const isWhite = (m) => bright(m) > 2.6;
+        check("R21", "Solid has no pattern pieces", () => catWith("Solid").userData.patternPieces.length === 0);
+        check("R21", "Tabby: dark stripes on the back and head, and rings on the tail", () => {
+          const cat = catWith("Tabby");
+          const pieces = cat.userData.patternPieces;
+          const fur = bright(cat.userData.torso);
+          return pieces.length >= 8 && pieces.every((m) => bright(m) < fur) &&
+            pieces.some((m) => m.name === "tail ring") && pieces.some((m) => m.name === "head stripe");
+        });
+        check("R21", "Patches: white patches", () => {
+          const pieces = catWith("Patches").userData.patternPieces;
+          return pieces.length >= 3 && pieces.every(isWhite);
+        });
+        check("R21", "Tuxedo: white chest, 4 white paws and a white muzzle", () => {
+          const pieces = catWith("Tuxedo").userData.patternPieces;
+          const named = (n) => pieces.filter((m) => m.name === n && isWhite(m)).length;
+          return named("chest") === 1 && named("paw") === 4 && named("muzzle") === 1;
+        });
+        check("R21", "Calico: ginger and black patches and a white belly", () => {
+          const pieces = catWith("Calico", FURS.Cream).userData.patternPieces;
+          const colors = pieces.map(hex);
+          return colors.includes(FURS.Ginger) && colors.includes(FURS.Black) && pieces.some((m) => m.name === "belly" && isWhite(m));
+        });
+        check("R21", "Spotted: at least 10 dark spots", () => {
+          const cat = catWith("Spotted");
+          const spots = cat.userData.patternPieces.filter((m) => m.name === "spot");
+          return spots.length >= 10 && spots.every((m) => bright(m) < bright(cat.userData.torso));
+        });
+        check("R21", "Colorpoint: light body, dark face, ears, paws and tail", () => {
+          const cat = catWith("Colorpoint", FURS.Brown);
+          const body = bright(cat.userData.torso);
+          const points = cat.userData.patternPieces;
+          const names = new Set(points.map((m) => m.name));
+          return body > bright({ material: { color: new THREE.Color(FURS.Brown) } }) &&
+            ["face", "ear", "paw", "tail"].every((n) => names.has(n)) && points.every((m) => bright(m) < body);
+        });
+        check("R21", "pattern pieces sit on the cat and move with it", () => PATTERNS.every((p) => {
+          const cat = catWith(p);
+          cat.updateMatrixWorld(true);
+          const box = new THREE.Box3();
+          cat.traverseVisible((o) => { if (o.isMesh && !cat.userData.patternPieces.includes(o)) box.expandByObject(o); });
+          box.expandByScalar(0.06);
+          const inside = cat.userData.patternPieces.every((m) => box.containsPoint(m.getWorldPosition(new THREE.Vector3())));
+          const before = cat.userData.patternPieces.map((m) => m.getWorldPosition(new THREE.Vector3()).x);
+          cat.position.x += 5; cat.updateMatrixWorld(true);
+          const moved = cat.userData.patternPieces.every((m, i) => Math.abs(m.getWorldPosition(new THREE.Vector3()).x - before[i] - 5) < 0.001);
+          return inside && moved;
+        }));
+        check("R21", "the preview cat has paws, short legs and a curved tail", () => {
+          const cat = catWith("Solid");
+          const u = cat.userData;
+          return u.paws.length === 4 && u.legLength < u.bodyLength * 0.5 && u.tailSegments.length >= 6;
+        });
+        check("R21", "on the title screen the 3D forest slowly circles the camp", () => {
+          resetGame(); playing = false;
+          time = 0; renderFrame(); const a = view.camera.position.clone();
+          time = 5; renderFrame(); const b = view.camera.position.clone();
+          const da = Math.hypot(a.x - CAMP.x, a.z - CAMP.z);
+          const db = Math.hypot(b.x - CAMP.x, b.z - CAMP.z);
+          return a.distanceTo(b) > 0.5 && Math.abs(da - db) < 0.01;
+        });
+
+        // ---------- R22 less text ----------
+        check("R22", "the HUD no longer shows your name, rank or clan line", () => {
+          clanName = "WindClan"; catName = "Storm"; resetGame(); playing = true; updateHud();
+          const hud = doc.getElementById("hud");
+          return !doc.getElementById("cat-info") && !hud.textContent.includes(fullName()) &&
+            !hud.textContent.includes("Kit of");
+        });
+        check("R22", "the task, clock, territory and bars are still shown", () =>
+          doc.getElementById("task").textContent.length > 0 && doc.getElementById("clock").textContent.length > 0 &&
+          doc.getElementById("territory").textContent.length > 0 && doc.getElementById("bars"));
+
+        // ---------- R23 solid rocks and trees ----------
+        freshWithRole("Warrior", "WindClan");
+        // Walk straight at something round for some seconds; returns the closest the cat's middle got
+        const closestWhileWalkingAt = (thing, startGap, seconds) => {
+          const away = Math.atan2(thing.x - CAMP.x, thing.z - CAMP.z);
+          place(thing.x + Math.sin(away) * startGap, thing.z + Math.cos(away) * startGap);
+          player.heading = Math.atan2(thing.x - player.x, thing.z - player.z);
+          let closest = Infinity;
+          keys.KeyW = true;
+          for (let i = 0; i < seconds * 60; i++) { step(1 / 60); closest = Math.min(closest, dist2d(player, thing)); }
+          releaseAll();
+          return closest;
+        };
+        check("R23", "you can't walk through a camp stone", () => {
+          const stone = rocks.find((r) => r.kind === "stone" && r.clan === clanName);
+          return closestWhileWalkingAt(stone, stone.r + 2, 1.5) >= stone.r + CAT_R - 0.01;
+        });
+        check("R23", "you can't walk through the Highrock", () => {
+          const rock = rocks.find((r) => r.kind === "highrock" && r.clan === clanName);
+          return closestWhileWalkingAt(rock, rock.r + 2, 1.5) >= rock.r + CAT_R - 0.01;
+        });
+        check("R23", "other cats walk around trees instead of through them", () => {
+          quiet();
+          const tree = { x: CAMP.x, z: CAMP.z, r: 0.6, h: 12, kind: "oak", phase: 0 };
+          trees.push(tree);
+          const c = campCats[3];
+          Object.assign(c, { x: CAMP.x + 0.05, z: CAMP.z - 3, injured: false, target: { x: CAMP.x, z: CAMP.z + 3 }, timer: 99 });
+          placeAt(0, -30);
+          let closest = Infinity;
+          for (let i = 0; i < 8 * 60; i++) { step(1 / 60); closest = Math.min(closest, dist2d(c, tree)); }
+          return closest >= tree.r + CAT_R - 0.02 && dist2d(c, { x: CAMP.x, z: CAMP.z + 3 }) < 0.6;
+        });
+        check("R23", "rogues can't go through rocks either", () => {
+          quiet();
+          const spot = at(0, -30);
+          const rock = { x: spot.x, z: spot.z, r: 1.2, kind: "stone", clan: clanName };
+          rocks.push(rock);
+          place(spot.x, spot.z + 2.6);
+          Object.assign(rogue, { x: spot.x + 0.05, z: spot.z - 2.6, state: "fighting", hp: ROGUE_HP, cooldown: 99, windup: 0, stagger: 0 });
+          let closest = Infinity;
+          for (let i = 0; i < 3 * 60; i++) { step(1 / 60); closest = Math.min(closest, dist2d(rogue, rock)); }
+          rogue.state = "gone"; rocks.pop();
+          return closest >= rock.r + CAT_R - 0.02;
+        });
+
+        // ---------- R25 huts ----------
+        freshWithRole("Warrior", "WindClan");
+        check("R25", "every camp has 5 huts with a doorway facing the middle of the camp", () =>
+          Object.keys(CLANS).every((c) => {
+            const mine = huts.filter((h) => h.clan === c);
+            const camp = campOf(c);
+            return mine.length === 5 && mine.every((h) => Math.abs(wrapAngle(h.door - Math.atan2(camp.x - h.x, camp.z - h.z))) < 0.01);
+          }));
+        const warriorsHut = () => dens.find((d) => d.id === "warriors");
+        check("R25", "hut walls are solid from the outside", () => {
+          const h = warriorsHut();
+          const back = h.door + Math.PI;
+          place(h.x + Math.sin(back) * (h.R + 1), h.z + Math.cos(back) * (h.R + 1));
+          player.heading = Math.atan2(h.x - player.x, h.z - player.z);
+          let wasInside = false;
+          keys.KeyW = true;
+          for (let i = 0; i < 120; i++) { step(1 / 60); if (insideHut(player)) wasInside = true; }
+          releaseAll();
+          return !wasInside && dist2d(player, h) >= h.R;
+        });
+        check("R25", "walking through the doorway takes you inside", () => {
+          const h = warriorsHut();
+          place(h.x + Math.sin(h.door) * (h.R + 1.5), h.z + Math.cos(h.door) * (h.R + 1.5));
+          player.heading = Math.atan2(h.x - player.x, h.z - player.z);
+          keys.KeyW = true; step(1.2); releaseAll();
+          return insideHut(player) === h;
+        });
+        check("R25", "the walls keep you inside except at the doorway", () => {
+          const h = warriorsHut();
+          place(h.x, h.z);
+          player.heading = h.door + Math.PI; // face the back wall
+          keys.KeyW = true; step(2); releaseAll();
+          return insideHut(player) === h;
+        });
+        check("R25", "the camera stays inside the hut with you", () => {
+          const h = warriorsHut();
+          place(h.x, h.z);
+          player.heading = h.door + Math.PI; snapCamera(); // camera points out through the back wall
+          const cam = cameraFor();
+          return dist2d(cam, h) < h.R && cam.y < h.R * 0.8;
+        });
+        check("R25", "press E anywhere inside your den to rest", () => {
+          const h = warriorsHut();
+          place(h.x + Math.sin(h.door + 1.5) * 1.5, h.z + Math.cos(h.door + 1.5) * 1.5);
+          player.hp = 30; dayTime = 0.6 * DAY_LENGTH; pressE();
+          return player.hp === 100 && clockText() === "07:12";
+        });
+        check("R25", "huts are drawn with a doorway and a mossy nest inside", () => {
+          buildScene(); renderFrame();
+          return view.denModels.length === 5 && view.denModels.every((m) => m.userData.nest && m.userData.doorway);
+        });
+
+        // ---------- R26 main menu ----------
+        freshWithRole("Warrior", "WindClan");
+        catName = "Storm";
+        check("R26", "there is no New cat button on the game screen", () => !doc.getElementById("new-cat"));
+        check("R26", "Esc opens the main menu with Resume, Restart and New cat", () => {
+          press("Escape");
+          const el = doc.getElementById("main-menu");
+          const actions = [...el.querySelectorAll("button")].map((b) => b.dataset.action).join();
+          return ui.menu && !el.classList.contains("hidden") && actions === "resume,restart,newcat";
+        });
+        check("R26", "the game is paused while the menu is open", () => {
+          const t = dayTime; const z = player.z;
+          keys.KeyW = true; step(1); releaseAll();
+          return dayTime === t && player.z === z;
+        });
+        check("R26", "Esc closes the menu again", () => {
+          press("Escape");
+          return !ui.menu && doc.getElementById("main-menu").classList.contains("hidden");
+        });
+        check("R26", "Resume closes the menu", () => {
+          press("Escape");
+          doc.querySelector("#main-menu button[data-action='resume']").click();
+          return !ui.menu && playing;
+        });
+        check("R26", "Restart starts the same cat over as a kit", () => {
+          stage = 3; role = "Warrior"; day = 4; player.food = 20;
+          const before = JSON.stringify(look);
+          press("Escape");
+          doc.querySelector("#main-menu button[data-action='restart']").click();
+          return playing && !ui.menu && stage === 0 && role === null && fullName() === "Stormkit" &&
+            clanName === "WindClan" && JSON.stringify(look) === before && day === 1 && player.food === 100;
+        });
+        check("R26", "while fishing, Esc stops fishing and doesn't open the menu", () => {
+          stage = 1; quiet(); place(bankX(), CAMP.z); pressE();
+          const fishingBefore = fishing.active;
+          press("Escape");
+          return fishingBefore && !fishing.active && !ui.menu;
+        });
+
+        // ---------- R27 dropping fresh-kill ----------
+        freshWithRole("Warrior", "WindClan");
+        check("R27", "G drops carried prey on the ground in front of you", () => {
+          quiet(); placeAt(0, -30); player.carrying = "mouse";
+          press("KeyG");
+          const d = dropped[0];
+          return player.carrying === null && dropped.length === 1 && d.kind === "mouse" &&
+            inFront(player, player.heading, d, 1.5, 0.5);
+        });
+        check("R27", "the prey falls from the mouth to the ground, and the cat dips its head", () => {
+          const falling = dropped[0].y > 0 && player.dropTimer > 0;
+          step(0.6);
+          return falling && dropped[0].y === 0 && player.dropTimer === 0;
+        });
+        check("R27", "E picks dropped prey up again", () => {
+          pressE();
+          return player.carrying === "mouse" && dropped.length === 0;
+        });
+        check("R27", "dropping prey at the fresh-kill pile adds it to the pile", () => {
+          const before = freshKill;
+          place(FRESH_KILL.x, FRESH_KILL.z - 1); player.carrying = "squirrel";
+          press("KeyG");
+          return freshKill === before + 1 && dropped.length === 0 && player.carrying === null;
+        });
+        check("R27", "G does nothing when you aren't carrying anything", () => {
+          placeAt(0, -30); press("KeyG");
+          return dropped.length === 0;
+        });
+        check("R27", "carried prey is shown in the mouth, and the head is held higher", () => {
+          player.carrying = "squirrel"; renderFrame();
+          const u = view.playerModel.userData;
+          const shown = u.carryModels.squirrel.visible && !u.carryModels.mouse.visible && !u.carryModels.fish.visible;
+          const raised = u.head.rotation.x < -0.1;
+          player.carrying = null; renderFrame();
+          return shown && raised && !u.carryModels.squirrel.visible && Math.abs(u.head.rotation.x) < 0.01;
+        });
+        check("R27", "dropped prey is drawn on the ground", () => {
+          placeAt(0, -30); player.carrying = "fish"; press("KeyG"); step(0.6); renderFrame();
+          return view.droppedModels.length === 1 && view.droppedModels[0].visible;
+        });
+
+        // ---------- R28 the tail ----------
+        const idle = tailPoseFor({});
+        const walking = tailPoseFor({ moving: true });
+        check("R28", "the tail has 8 segments so it can curve", () => catWith("Solid").userData.tailSegments.length === 8);
+        check("R28", "standing still: tail up with a gentle curve, slowly swishing", () =>
+          idle.lift > 0.6 && idle.lift < 1.2 && idle.swish > 0 && idle.speed < 3);
+        check("R28", "walking: tail held high with a curled, question-mark tip", () => walking.lift > 1.1 && walking.tipCurl > 0.2);
+        check("R28", "running: the tail streams out straight behind", () => {
+          const p = tailPoseFor({ moving: true, running: true });
+          return Math.abs(p.lift) < 0.25 && p.swish < idle.swish;
+        });
+        check("R28", "stalking: tail low near the ground, tip twitching", () => {
+          const p = tailPoseFor({ moving: true, crouch: true });
+          return p.lift < 0.2 && p.speed > idle.speed;
+        });
+        check("R28", "fighting: tail puffed up and lashing fast", () => {
+          const p = tailPoseFor({ fighting: true });
+          return p.puff >= 1.4 && p.swish > idle.swish && p.speed > 6;
+        });
+        check("R28", "climbing: the tail hangs down", () => tailPoseFor({ climbing: true }).lift < -0.8);
+        check("R28", "swimming: the tail floats out straight", () => Math.abs(tailPoseFor({ swimming: true, moving: true }).lift) < 0.25);
+        check("R28", "hurt and lying down: the tail lies limp", () => {
+          const p = tailPoseFor({ lying: true });
+          return p.lift < 0.1 && p.swish < 0.1;
+        });
+        check("R28", "turning left swings the tail out to the right, and the other way round", () =>
+          tailPoseFor({ turnVel: 2 }).side < 0 && tailPoseFor({ turnVel: -2 }).side > 0);
+        check("R28", "the 3D tail follows the pose (puffed when fighting)", () => {
+          const cat = catWith("Solid");
+          poseCat(cat, { x: 0, y: 0, z: 0, heading: 0, size: 1, fighting: true }, 1);
+          const puffed = cat.userData.tailSegments[0].scale.x;
+          poseCat(cat, { x: 0, y: 0, z: 0, heading: 0, size: 1 }, 1);
+          return puffed >= 1.4 && Math.abs(cat.userData.tailSegments[0].scale.x - 1) < 0.01;
+        });
+        check("R28", "every cat uses the same tail: a fighting rogue's tail is puffed", () => {
+          placeAt(0, -30); enemyInFrontOfPlayer(3); renderFrame();
+          const puffed = view.rogueModel.userData.tailSegments[0].scale.x >= 1.4;
+          rogue.state = "gone";
+          return puffed;
+        });
+
+        // ---------- R29 cats in other camps ----------
+        freshWithRole("Warrior", "WindClan");
+        const rivalCampCats = (c) => patrols.filter((p) => p.clan === c && p.mode === "camp");
+        check("R29", "each other clan's camp has 4 cats living in it", () =>
+          ["ThunderClan", "ShadowClan", "RiverClan"].every((c) =>
+            rivalCampCats(c).length === 4 && rivalCampCats(c).every((p) => dist2d(p, campOf(c)) < 8)) &&
+          patrols.every((p) => p.clan !== clanName));
+        check("R29", "they wander around their camp", () => {
+          const before = rivalCampCats("ShadowClan").map((p) => ({ x: p.x, z: p.z }));
+          step(12);
+          const after = rivalCampCats("ShadowClan");
+          return after.some((p, i) => dist2d(p, before[i]) > 0.5) && after.every((p) => dist2d(p, campOf("ShadowClan")) < 9);
+        });
+        check("R29", "they attack when you come close on their territory", () => {
+          const camp = campOf("ShadowClan");
+          place(camp.x - 4, camp.z - 8); // ShadowClan land, inside their camp (clear of huts and the Highrock)
+          step(0.3);
+          return rivalCampCats("ShadowClan").some((p) => p.state === "fighting");
+        });
+        check("R29", "they stop when you leave their territory", () => {
+          place(10, 10);
+          step(0.3);
+          return rivalCampCats("ShadowClan").every((p) => p.state !== "fighting");
+        });
+        check("R29", "a beaten camp cat runs home, counts as a fight, and recovers after 30 seconds", () => {
+          const c = rivalCampCats("ShadowClan")[0];
+          const before = stats.fights;
+          const camp = campOf("ShadowClan");
+          place(camp.x - 4, camp.z - 12);
+          Object.assign(c, { x: camp.x - 4, z: camp.z - 10.8, state: "fighting", hp: 5, stagger: 0, windup: 0 });
+          pressE();
+          const fled = c.state === "fleeing" && stats.fights === before + 1;
+          place(10, 10);
+          step(PATROL_RECOVER + 4);
+          return fled && c.state === "patrol" && c.hp === PATROL_HP;
+        });
+        check("R29", "the cats in other camps are drawn", () => {
+          renderFrame();
+          return view.patrolModels.length === patrols.length && patrols.length === 3 * (2 + 4);
+        });
+
+        // ---------- R24 grass (drawing) ----------
+        check("R24", "there are more than 8000 grass blades around the cat", () => view.grass.count >= 8000);
+        check("R24", "each blade is tapered and bends in several segments", () => {
+          const pos = view.grass.geometry.attributes.position;
+          const heights = new Set();
+          let bottomWidth = 0, topWidth = 0;
+          const ys = [];
+          for (let i = 0; i < pos.count; i++) { heights.add(pos.getY(i).toFixed(3)); ys.push(pos.getY(i)); }
+          const minY = Math.min(...ys), maxY = Math.max(...ys);
+          for (let i = 0; i < pos.count; i++) {
+            if (pos.getY(i) === minY) bottomWidth = Math.max(bottomWidth, Math.abs(pos.getX(i)));
+            if (pos.getY(i) >= maxY - 0.001) topWidth = Math.max(topWidth, Math.abs(pos.getX(i)));
+          }
+          return heights.size >= 4 && topWidth < bottomWidth * 0.5;
+        });
+        check("R24", "grass is darker at the root and lighter at the tip", () => {
+          const g = view.grass.geometry;
+          const pos = g.attributes.position;
+          const col = g.attributes.color;
+          let rootI = 0, tipI = 0;
+          for (let i = 0; i < pos.count; i++) {
+            if (pos.getY(i) < pos.getY(rootI)) rootI = i;
+            if (pos.getY(i) > pos.getY(tipI)) tipI = i;
+          }
+          const b = (i) => col.getX(i) + col.getY(i) + col.getZ(i);
+          return b(rootI) < b(tipI);
+        });
+        check("R24", "grass grows in clumps", () => view.grass.userData.clumps >= 1000 && view.grass.count / view.grass.userData.clumps >= 3);
+        check("R24", "grass sways in the wind on the graphics card", () => {
+          const u = view.grassUniforms;
+          time = 10; renderFrame(); const t1 = u.uTime.value;
+          time = 11; renderFrame();
+          return view.grass.material.userData.wind === true && u.uTime.value - t1 === 1;
+        });
+        check("R24", "grass colour depends on the territory", () =>
+          Object.keys(CLANS).every((c) => {
+            const want = new THREE.Color(PLACES[CLANS[c].biome].grass);
+            return view.grassUniforms.uColors.value.some((col) => col.equals(want));
+          }));
+        check("R24", "no grass grows in water or on bare camp ground", () =>
+          !grassAllowedAt((RIVER_X0 + RIVER_X1) / 2, 50) && !grassAllowedAt(CAMP.x + 1, CAMP.z + 1) &&
+          grassAllowedAt(CAMP.x, CAMP.z - 30));
+
+        // ---------- New cat (R26) ----------
+        check("R26", "New cat in the main menu goes back to the cat maker", () => {
+          playing = true; ui.menu = false;
+          press("Escape");
+          doc.querySelector("#main-menu button[data-action='newcat']").click();
+          return !playing && !ui.menu && !doc.getElementById("menu").classList.contains("hidden");
         });
       } catch (e) {
         check("--", "tests ran without crashing: " + e.message, () => false);
