@@ -412,7 +412,7 @@
         });
         check("R9", "a leader has 3 clanmates", () => clanmates.length === 3);
         check("R9", "order 1 (Follow): clanmates come to the leader", () => {
-          placeAt(-20, 20); press("Digit1"); step(8);
+          placeAt(-20, 20); press("Digit1"); step(14); // they start about 54 away, by the hunting spot
           return order === "follow" && clanmates.every((c) => dist2d(c, player) < 5);
         });
         check("R9", "order 2 (Hunt): clanmates bring fresh-kill that refills food", () => {
@@ -1427,6 +1427,7 @@
           return dropped.length === 0;
         });
         check("R27", "carried prey is shown in the mouth, and the head is held higher", () => {
+          step(0.5); // let the last drop's head dip finish
           player.carrying = "squirrel"; renderFrame();
           const u = view.playerModel.userData;
           const shown = u.carryModels.squirrel.visible && !u.carryModels.mouse.visible && !u.carryModels.fish.visible;
