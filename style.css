@@ -84,6 +84,146 @@ button:hover {
   pointer-events: auto;
 }
 
+#clock,
+#orders {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+#orders {
+  color: #e9c46a;
+}
+
+/* ---------- Bars (R8) ---------- */
+/* The HUD fills the game area so the bars can sit at its bottom */
+#hud {
+  bottom: 10px;
+}
+
+#bars {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+}
+
+.bar {
+  position: relative;
+  width: 200px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.bar .fill {
+  height: 100%;
+  width: 100%;
+}
+
+.bar span {
+  position: absolute;
+  left: 8px;
+  top: 1px;
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
+
+#health-bar .fill { background: #4caf50; }
+#food-bar .fill { background: #d9a03b; }
+#food-bar.low .fill { background: #c0392b; }
+
+#rogue-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+#rogue-bar .fill { background: #c0392b; }
+
+/* ---------- Fishing ---------- */
+#fishing {
+  position: absolute;
+  left: 50%;
+  top: 26%;
+  transform: translateX(-50%);
+  width: 420px;
+  max-width: 90%;
+  padding: 8px 20px 16px;
+  border: 3px solid #e9c46a;
+  border-radius: 8px;
+  background: rgba(15, 30, 45, 0.85);
+}
+
+#fishing p {
+  margin: 4px 0 8px;
+}
+
+#fish-water {
+  position: relative;
+  height: 30px;
+  background: #3f7fb8;
+  border: 2px solid transparent;
+}
+
+#fish-water.good { border-color: #7ddc6a; }
+#fish-water.bad { border-color: #e05a4a; }
+
+#fish-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(233, 196, 106, 0.8);
+}
+
+#fish {
+  position: absolute;
+  top: 8px;
+  width: 22px;
+  height: 10px;
+  border-radius: 50% 30% 30% 50%;
+  background: #c0c8d0;
+}
+
+/* ---------- Role choice (R9) ---------- */
+#role-choice {
+  position: absolute;
+  inset: 15% 10%;
+  padding: 16px 24px;
+  border: 2px solid #e9c46a;
+  border-radius: 8px;
+  background: rgba(20, 32, 18, 0.95);
+  text-align: center;
+}
+
+#role-choice h2 {
+  margin: 0 0 12px;
+  color: #e9c46a;
+}
+
+#role-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#role-options button {
+  flex: 1 1 180px;
+  max-width: 240px;
+  padding: 12px;
+}
+
+#role-options small {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
 #message {
   position: absolute;
   left: 50%;
