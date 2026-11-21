@@ -492,3 +492,94 @@ h3 {
   font-size: 13px;
   opacity: 0.85;
 }
+
+/* ---------- Round 3 ---------- */
+/* R21: a proper title screen. The 3D forest circles behind a see-through panel. */
+#menu {
+  padding: 14px 22px;
+  background:
+    linear-gradient(90deg, rgba(14, 22, 12, 0.92) 0%, rgba(14, 22, 12, 0.82) 55%, rgba(14, 22, 12, 0.35) 100%);
+}
+
+.title-block {
+  margin-bottom: 8px;
+}
+
+#game-title {
+  font-size: 46px;
+  letter-spacing: 2px;
+  line-height: 1;
+  color: #f2c75c;
+  text-shadow: 0 2px 0 #6b4a1a, 0 4px 14px rgba(0, 0, 0, 0.8);
+}
+
+#game-title::before {
+  content: "🐾 ";
+  font-size: 34px;
+}
+
+.title-block .subtitle {
+  margin: 6px 0 0;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.menu-options h3 {
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 12px;
+}
+
+.choices button {
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+.menu-preview {
+  padding: 8px;
+  border: 1px solid rgba(233, 196, 106, 0.4);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#preview {
+  background: radial-gradient(circle at 50% 40%, #3e6a34 0%, #1d2e18 80%);
+}
+
+#start-btn {
+  width: 100%;
+  background: #8a5a1a;
+  border-color: #f2c75c;
+}
+
+#start-btn:hover {
+  background: #a86d22;
+}
+
+/* R26: main menu (Esc) */
+#main-menu {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 240px;
+  padding: 18px 28px;
+  border: 2px solid #e9c46a;
+  border-radius: 10px;
+  background: rgba(14, 22, 12, 0.95);
+  text-align: center;
+}
+
+#main-menu h2 {
+  margin: 0 0 4px;
+  color: #e9c46a;
+}
+
+#main-menu button {
+  font-size: 18px;
+  padding: 8px;
+}

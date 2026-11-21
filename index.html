@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Forest Clans</title>
+  <title>Cat Clans</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,13 +12,11 @@
 
     <!-- Info shown while playing -->
     <div id="hud" class="hidden">
-      <div id="cat-info"></div>
       <div id="task"></div>
       <div id="clock"></div>
       <div id="territory"></div>
       <div id="orders" class="hidden"></div>
       <div id="scent" class="hidden"></div>
-      <button id="new-cat">New cat</button>
       <div id="rogue-bar" class="bar hidden"><div class="fill"></div><span>Enemy</span></div>
       <!-- Health and food along the bottom (R8) -->
       <div id="bars">
@@ -58,13 +56,24 @@
       <div id="role-options"></div>
     </div>
 
+    <!-- Main menu: press Esc (R26) -->
+    <div id="main-menu" class="hidden">
+      <h2>Paused</h2>
+      <button data-action="resume">Resume</button>
+      <button data-action="restart">Restart</button>
+      <button data-action="newcat">New cat</button>
+      <p class="hint">Esc to close</p>
+    </div>
+
     <!-- Short pop-up messages -->
     <div id="message" class="hidden"></div>
 
     <!-- Start screen: make your cat -->
     <div id="menu">
-      <h1>Forest Clans</h1>
-      <p class="subtitle">Start as a kit and grow into a warrior, deputy, medicine cat, or even leader of your clan.</p>
+      <div class="title-block">
+        <h1 id="game-title">Cat Clans</h1>
+        <p class="subtitle">Make your cat, join a clan, and grow from a kit into a warrior, deputy, medicine cat, or even leader.</p>
+      </div>
       <div class="menu-body">
         <div class="menu-options">
           <label class="name-label">Name
@@ -98,7 +107,7 @@
     Walk: W/&uarr; (tap twice to run) &middot; Back: S/&darr; &middot; Turn: A/D or &larr;/&rarr; &middot;
     Stalk: Shift &middot; Jump: Space &middot; Action: E &middot; Scent: hold Q &middot; Map: M &middot; Herbs: H<br>
     Fight: E swipe &middot; C dodge &middot; F pounce attack &middot; R bite &middot;
-    Climb: walk into a tree &middot; Leader orders: 1 / 2 / 3 &middot; Stop fishing: Esc
+    Drop prey: G &middot; Climb: walk into a tree &middot; Leader orders: 1 / 2 / 3 &middot; Menu: Esc (stops fishing while fishing)
   </p>
 
   <!-- Three.js draws the 3D world (free, from a CDN) -->

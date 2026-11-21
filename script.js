@@ -1,4 +1,4 @@
-// Forest Clans - connects the game (game.js) and the 3D view (render3d.js) to the web page:
+// Cat Clans - connects the game (game.js) and the 3D view (render3d.js) to the web page:
 // keyboard, start menu, HUD, map, herb pouch, mentor and role choice, and the main loop.
 
 // ======================================================
@@ -61,7 +61,6 @@ function setBar(el, value, max) {
 }
 
 function updateHud() {
-  setText($("cat-info"), `${fullName()} · ${rankName()} of ${clanName}`);
   setText($("task"), taskText());
   const phase = dayPhase();
   setText($("clock"), `Day ${day} · ${clockText()} · ${phase[0].toUpperCase() + phase.slice(1)}`);
@@ -99,6 +98,7 @@ function updateHud() {
       .map((o, i) => `${i + 1} ${o[0].toUpperCase() + o.slice(1)}${o === order ? " ◀" : ""}`).join("   "));
   }
 
+  $("main-menu").classList.toggle("hidden", !(playing && ui.menu));   // R26
   updatePouch();
   updateMap();
   updateFishingBox();
@@ -338,7 +338,10 @@ function buildMenu() {
 
   nameInput.addEventListener("input", updatePreviewName);
   $("start-btn").addEventListener("click", startGame);
-  $("new-cat").addEventListener("click", showMenu);
+  // R26: the main menu (opened with Esc)
+  $("main-menu").querySelector("[data-action='resume']").addEventListener("click", () => { ui.menu = false; updateHud(); document.activeElement.blur(); });
+  $("main-menu").querySelector("[data-action='restart']").addEventListener("click", restartFromMenu);
+  $("main-menu").querySelector("[data-action='newcat']").addEventListener("click", showMenu);
   updatePreviewName();
 }
 
@@ -358,6 +361,15 @@ function startGame() {
   showMessage(`Welcome to ${clanName}, ${fullName()}! W to walk (tap twice to run), A/D to turn, M for the map.`, 4);
 }
 
+// R26: Restart from the main menu: the same cat and clan start over as a kit
+function restartFromMenu() {
+  restartGame();
+  buildScene();
+  updateHud();
+  document.activeElement.blur();
+  showMessage(`${fullName()} starts again in ${clanName}.`, 3);
+}
+
 function showMenu() {
   playing = false;
   fishing.active = false;
@@ -365,9 +377,10 @@ function showMenu() {
   choosingMentor = false;
   ui.map = false;
   ui.pouch = false;
+  ui.menu = false;
   menuEl.classList.remove("hidden");
   hudEl.classList.add("hidden");
-  for (const id of ["message", "role-choice", "mentor-choice", "fishing", "pouch", "map"]) $(id).classList.add("hidden");
+  for (const id of ["message", "role-choice", "mentor-choice", "fishing", "pouch", "map", "main-menu"]) $(id).classList.add("hidden");
   document.activeElement.blur();
 }
 
@@ -385,6 +398,8 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
+$("game-title").textContent = GAME_NAME;   // R21
+document.title = document.title.replace("Forest Clans", GAME_NAME);
 buildMenu();
 buildMentorChoice();
 buildRoleChoice();
