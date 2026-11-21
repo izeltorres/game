@@ -36,6 +36,13 @@ Test after a change.
   ID, e.g. `check("R7", "what is checked", () => ...)`.
 - Checks run in order and share state, so set up what each check needs (see the helpers at the top of
   the test script).
+- Place the cat relative to its own camp (`placeAt(dx, dz)`, `at(dx, dz)`), not at fixed world
+  positions: camps differ per clan, and spots in another clan's territory start patrol fights.
+- Prey moves randomly. Call `quiet()` before a check that presses E near the ground, then add the
+  prey the check needs.
+- After teleporting the cat or setting its `heading`, call `snapCamera()` before checking the camera.
+- Call `step(0.5)` before a check that must start from walking: a W tap less than 0.3 s after the
+  last one starts a run.
 - All checks, including earlier rounds', must pass before the work is done.
 - There is no Node.js. Run the tests in headless Edge from Git Bash (absolute paths and a separate
   profile folder are required, or Edge prints nothing):
