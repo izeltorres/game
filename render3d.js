@@ -101,7 +101,8 @@ function makeCatModel(catLook) {
   head.add(blob(mat("#d77a8a"), 0.025, 0.018, 0.016, 0, -0.035, 0.195));   // nose
 
   // Prey carried in the mouth (R27): one model per kind, shown when carrying it
-  const carryModels = { mouse: makeMouseModel(), squirrel: makeSquirrelModel(), fish: makeFishModel() };
+  const carryModels = { mouse: makeMouseModel(), squirrel: makeSquirrelModel(), fish: makeFishModel(),
+                        vole: makePreyModel("vole"), sparrow: makeSparrowModel(), rabbit: makePreyModel("rabbit") };
   for (const kind in carryModels) {
     const m = carryModels[kind];
     m.position.set(0.02, -0.16, 0.2);
@@ -465,10 +466,62 @@ function makeFishModel() {
   return f;
 }
 
+// R47: a simple furry body with ears and a tail, sized and coloured for each kind
+function makeFurryPrey(color, length, earLength, tailLength) {
+  const sphere = new THREE.SphereGeometry(1, 10, 8);
+  const fur = mat(color);
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(sphere, fur);
+  body.scale.set(length * 0.45, length * 0.4, length * 0.6);
+  body.position.y = length * 0.4;
+  g.add(body);
+  const head = new THREE.Mesh(sphere, fur);
+  head.scale.setScalar(length * 0.3);
+  head.position.set(0, length * 0.6, length * 0.55);
+  g.add(head);
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(sphere, fur);
+    ear.scale.set(length * 0.06, earLength, length * 0.1);
+    ear.position.set(side * length * 0.12, length * 0.75 + earLength * 0.8, length * 0.5);
+    ear.rotation.x = -0.3;
+    g.add(ear);
+  }
+  const tail = new THREE.Mesh(sphere, mat("#f0ece0"));
+  tail.scale.setScalar(tailLength);
+  tail.position.set(0, length * 0.45, -length * 0.6);
+  g.add(tail);
+  g.userData.tail = tail;
+  return g;
+}
+
+function makeSparrowModel() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat("#8a6a4a"));
+  body.scale.set(0.05, 0.05, 0.08);
+  body.position.y = 0.07;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), mat("#6a4a32"));
+  head.position.set(0, 0.11, 0.06);
+  g.add(head);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.03, 4), mat("#d8a840"));
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.11, 0.1);
+  g.add(beak);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.008, 0.06), mat("#5a3a22"));
+  tail.position.set(0, 0.08, -0.09);
+  g.add(tail);
+  g.userData.tail = tail;
+  return g;
+}
+
 function makePreyModel(kind) {
   if (kind === "mouse") return makeMouseModel();
   if (kind === "squirrel") return makeSquirrelModel();
   if (kind === "fish") return makeFishModel();
+  if (kind === "vole") return makeFurryPrey("#6a5040", 0.18, 0.02, 0.02);
+  if (kind === "rabbit") return makeFurryPrey("#9a8068", 0.42, 0.12, 0.06);
+  if (kind === "hare") return makeFurryPrey("#a8885a", 0.62, 0.2, 0.07);
+  if (kind === "sparrow") return makeSparrowModel();
   return makeBeetleModel();
 }
 
@@ -652,6 +705,14 @@ function makeGrass(random) {
 // ======================================================
 // Setting up the 3D view
 // ======================================================
+// R55: size the 3D view to fill the window
+function fitView(width, height) {
+  if (!view) return;
+  view.renderer.setSize(width, height, false);
+  view.camera.aspect = width / height;
+  view.camera.updateProjectionMatrix();
+}
+
 function initView(canvas) {
   if (!has3D()) return;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -826,6 +887,7 @@ function buildScene() {
   const stoneMat = mat("#8a8a80", { flatShading: true });
   const stoneGeo = new THREE.DodecahedronGeometry(1, 0);
   for (const r of rocks) {
+    if (r.kind === "greatoak") continue;   // drawn as a tree below (R48)
     const rock = new THREE.Mesh(stoneGeo, stoneMat);
     if (r.kind === "highrock") rock.scale.set(r.r, 1.8, r.r * 0.9);
     else rock.scale.set(r.r, r.r * 0.7, r.r);
@@ -899,6 +961,29 @@ function buildScene() {
   // Kits (R31)
   const kitModels = kits.map((k) => { const m = makeCatModel(k.look); scene.add(m); return m; });
 
+  // R48: the Great Oak where the clans gather, in the middle of the world
+  const greatOak = new THREE.Group();
+  const oakTrunk = new THREE.Mesh(trunkGeo, mat("#5a4430"));
+  oakTrunk.scale.set(1.6, 12, 1.6);
+  greatOak.add(oakTrunk);
+  for (const [bx, by, bz, s] of [[0, 14, 0, 7], [-5, 12, 2, 5], [5, 12.5, -2, 5], [1, 12, 5, 4.5], [-1, 13, -5, 4.5]]) {
+    const leaves = new THREE.Mesh(blobGeo, mat("#3a7a32", { flatShading: true }));
+    leaves.scale.setScalar(s);
+    leaves.position.set(bx, by, bz);
+    greatOak.add(leaves);
+  }
+  greatOak.position.set(GATHERING_SPOT.x, 0, GATHERING_SPOT.z);
+  scene.add(greatOak);
+
+  // R52: a medicine cat in every camp
+  const medicineCatModels = medicineCats.map((m) => { const model = makeCatModel(m.look); scene.add(model); return model; });
+
+  // R49: the stolen rabbit lying on a rival's land
+  const stolenModel = makePreyModel("rabbit");
+  stolenModel.rotation.z = Math.PI / 2;
+  stolenModel.visible = false;
+  scene.add(stolenModel);
+
   // Rain (R30): short falling streaks around the camera (each streak is a top and a bottom point)
   const rainCount = 1500;
   const rainGeo = new THREE.BufferGeometry();
@@ -933,7 +1018,7 @@ function buildScene() {
   Object.assign(view, {
     scene, hemi, sun, sunBall, moonBall, stars, treeTops, grass, grassUniforms, herbModels, denModels, pileModel,
     playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels, kitModels,
-    rain, fishModels, ripple, lightningFlash: 0,
+    rain, fishModels, ripple, lightningFlash: 0, greatOak, medicineCatModels, stolenModel, raiderModels: [], leaderModels: [],
     preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
   });
 }
@@ -1163,7 +1248,9 @@ function updateCamp() {
     if (!model) return;
     model.visible = h.ready;
     const glow = role === "Medicine cat" || mentor === "herbs" || player.scenting;
-    model.userData.flowerMat.emissiveIntensity = glow ? 0.6 + Math.sin(time * 3) * 0.3 : 0;
+    // R53: the herb under the aiming dot glows brightly
+    model.userData.aimed = playing && aimedHerb() === h;
+    model.userData.flowerMat.emissiveIntensity = model.userData.aimed ? 1.4 : (glow ? 0.6 + Math.sin(time * 3) * 0.3 : 0);
   });
 }
 
@@ -1230,6 +1317,40 @@ function updateFishingView(t) {
   }
 }
 
+// Keep a list of models matching a list of cats (making new models when the list changes)
+function syncCatModels(models, cats) {
+  if (models.length === cats.length && models.every((m, i) => m.userData.source === cats[i])) return models;
+  models.forEach((m) => view.scene.remove(m));
+  return cats.map((c) => {
+    const m = makeCatModel(c.look);
+    m.userData.source = c;
+    view.scene.add(m);
+    return m;
+  });
+}
+
+// Round 5: medicine cats (R52), raiders (R54), the other leaders at a Gathering (R48), stolen prey (R49)
+function updateRound5View(t) {
+  medicineCats.forEach((m, i) => {
+    const model = view.medicineCatModels[i];
+    poseCat(model, { x: m.x, y: 0, z: m.z, heading: m.heading, size: 0.95, moving: m.moving, walk: m.walk, idle: m.moving ? 0 : 6 }, t);
+    model.visible = playing;
+  });
+  view.raiderModels = syncCatModels(view.raiderModels, raiders);
+  raiders.forEach((r, i) => {
+    poseFighter(view.raiderModels[i], r, 0.95, t);
+    view.raiderModels[i].visible = playing;
+  });
+  const showLeaders = gathering.called || (pendingChoice && pendingChoice.kind === "speech") ? gatheringLeaders : [];
+  view.leaderModels = syncCatModels(view.leaderModels, showLeaders);
+  showLeaders.forEach((l, i) => {
+    poseCat(view.leaderModels[i], { x: l.x, y: 0, z: l.z, heading: l.heading, size: 1.05, idle: 6 }, t);
+  });
+  const stolen = stolenPrey && !stolenPrey.taken;
+  view.stolenModel.visible = playing && !!stolen;
+  if (stolen) view.stolenModel.position.set(stolenPrey.x, 0.1, stolenPrey.z);
+}
+
 // R21: on the title screen the camera slowly circles the camp
 function titleCamera(t) {
   const a = t * 0.1;
@@ -1240,7 +1361,7 @@ function renderFrame() {
   if (!view) return;
   if (view.builtFor !== clanName || view.campCatModels.length !== campCats.length ||
       view.patrolModels.length !== patrols.length || view.herbModels.length !== herbs.length ||
-      view.kitModels.length !== kits.length || view.builtLook !== JSON.stringify(look)) {
+      view.kitModels.length !== kits.length || view.medicineCatModels.length !== medicineCats.length || view.builtLook !== JSON.stringify(look)) {
     buildScene();   // a new game with a different clan or cat
   }
   const t = time;
@@ -1254,6 +1375,7 @@ function renderFrame() {
   updateKitModels(t);
   updateWeatherView(t, cam);
   updateFishingView(t);
+  updateRound5View(t);
 
   // R11/R12/R25: the camera sits low and close behind the cat (inside a hut when you are)
   view.camera.position.set(cam.x, cam.y, cam.z);
