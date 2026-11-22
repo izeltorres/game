@@ -323,10 +323,13 @@ function drawMap() {
   c.stroke();
   // River and stream
   c.fillStyle = "#2f6fb0";
-  for (const w of WATERS) {
-    const a = mapToCanvas(w.x0, WORLD_HALF);
-    const b = mapToCanvas(w.x1, -WORLD_HALF);
-    c.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  // (drawn as a shape along z, so the river's bends show, R74)
+  for (let i = 0; i < WATERS.length; i++) {
+    c.beginPath();
+    for (let z = -WORLD_HALF; z <= WORLD_HALF; z += 2) { const p = mapToCanvas(watersAt(z)[i].x0, z); c.lineTo(p.x, p.y); }
+    for (let z = WORLD_HALF; z >= -WORLD_HALF; z -= 2) { const p = mapToCanvas(watersAt(z)[i].x1, z); c.lineTo(p.x, p.y); }
+    c.closePath();
+    c.fill();
   }
   // Camps and names
   c.textAlign = "center";

@@ -23,7 +23,7 @@ function setMuted(m) {
 // How far the cat is from the nearest river or stream bank
 function distanceToWater() {
   let best = Infinity;
-  for (const w of WATERS) {
+  for (const w of watersAt(player.z)) {   // the river bends (R74)
     if (player.x > w.x0 && player.x < w.x1) return 0;
     best = Math.min(best, Math.abs(player.x - w.x0), Math.abs(player.x - w.x1));
   }

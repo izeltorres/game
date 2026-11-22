@@ -18,7 +18,9 @@ const RIVER_X0 = 30;
 const RIVER_X1 = 36;
 const STREAM_X0 = -34;
 const STREAM_X1 = -30;
-const WATERS = [{ x0: RIVER_X0, x1: RIVER_X1 }, { x0: STREAM_X0, x1: STREAM_X1 }];
+const WATERS = [{ x0: RIVER_X0, x1: RIVER_X1, bends: true }, { x0: STREAM_X0, x1: STREAM_X1 }];   // x0/x1: the river's edges at z = 0
+const RIVER_BEND = 5;      // R74: the river's middle moves up to this far either way...
+const RIVER_WAVE = 80;     // ...one full bend every this many units of z (the stream stays straight)
 
 const ROGUE_HP = 60;
 const ROGUE_RESPAWN = 20;        // seconds until a new rogue shows up (R9)
@@ -666,12 +668,22 @@ function mentorCat() {
   return campCats.find((c) => c.mentorId === mentor) || null;
 }
 
-function inRiver(x) {
-  return WATERS.some((w) => x > w.x0 && x < w.x1);
+// R74: how far the winding river is moved sideways at this z
+function riverShift(z) {
+  return RIVER_BEND * Math.sin((2 * Math.PI * z) / RIVER_WAVE);
 }
 
-function nearRiver(x) {
-  return WATERS.some((w) => x > w.x0 - 3 && x < w.x1 + 3);
+// The edges of the river and the stream at this z: [river, stream]
+function watersAt(z) {
+  return WATERS.map((w) => (w.bends ? { x0: w.x0 + riverShift(z), x1: w.x1 + riverShift(z) } : { x0: w.x0, x1: w.x1 }));
+}
+
+function inRiver(x, z) {
+  return watersAt(z).some((w) => x > w.x0 && x < w.x1);
+}
+
+function nearRiver(x, z) {
+  return watersAt(z).some((w) => x > w.x0 - 3 && x < w.x1 + 3);
 }
 
 function eat(amount) {
@@ -716,7 +728,7 @@ function buildTrees() {
     const keep = random();
     const place = biomeAt(x, z);
     if (keep > density[place]) continue;
-    if (nearRiver(x) || WATERS.some((w) => x > w.x0 - 4 && x < w.x1 + 4)) continue;   // not by the water
+    if (watersAt(z).some((w) => x > w.x0 - 4 && x < w.x1 + 4)) continue;   // not by the water
     if (Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < CAMP_CLEARING)) continue;  // camps are clearings
     if (distance({ x, z }, GATHERING_SPOT) < 12) continue;   // the clearing around the Great Oak (R48)
     if (keepClear.some((p) => Math.hypot(x - p.x, z - p.z) < 5)) continue;
@@ -1023,7 +1035,7 @@ function updatePlayer(dt) {
   if (player.running) speed *= RUN_SPEED * clan.run;
   if (player.crouching) speed *= 0.35;
   if (player.scenting) speed *= 0.5;
-  const depth = onSteppingStone(player) ? null : waterDepthAt(player.x);
+  const depth = onSteppingStone(player) ? null : waterDepthAt(player.x, player.z);
   if (depth === "deep") speed *= clan.swim;               // swimming (R6)
   else if (depth === "shallow") speed *= WADE_SPEED;     // wading in the shallows (R59)
 
@@ -1056,7 +1068,7 @@ function updatePlayer(dt) {
     player.z -= CURRENT_SPEED * dt;
     keepInWorld(player);
   }
-  const wet = inRiver(player.x) && !onSteppingStone(player);
+  const wet = inRiver(player.x, player.z) && !onSteppingStone(player);
   if (wet && !player.wasWet) {
     player.splashTimer = 0.6;
     playSound("splash");
@@ -1218,7 +1230,7 @@ function doAction() {
   else if (tryInteract()) return;
   else if (preyInReach()) catchPrey(preyInReach());
   else if (tryTalk()) return;
-  else if (stage >= 1 && nearRiver(player.x)) tryFishing();
+  else if (stage >= 1 && nearRiver(player.x, player.z)) tryFishing();
   else if (currentTask() === "fish") say("Find the river or the stream in your territory first.", 1.5);
   else if (stage === 0) pounceMiss();
   else trySwipe();
@@ -1257,7 +1269,7 @@ function randomHomeSpot() {
   let spot = spotFor(clanName, 30, 30);
   for (let i = 0; i < 30; i++) {
     const s = spotFor(clanName, -52 + Math.random() * 104, -52 + Math.random() * 104);
-    if (distance(s, CAMP) < CAMP_CLEARING || nearRiver(s.x)) continue;
+    if (distance(s, CAMP) < CAMP_CLEARING || nearRiver(s.x, s.z)) continue;
     spot = s;
     break;
   }
@@ -1276,7 +1288,7 @@ function keepCritterHome(c) {
     return;
   }
   keepInTerritory(c, clanName);
-  for (const w of WATERS) {
+  for (const w of watersAt(c.z)) {
     if (c.x > w.x0 - 1 && c.x < w.x1 + 1) c.x = c.x < (w.x0 + w.x1) / 2 ? w.x0 - 1 : w.x1 + 1;
   }
 }
@@ -1551,9 +1563,11 @@ function scentHint() {
 // ======================================================
 // Fishing in 3D (R35): crouch at the bank and swipe when a fish swims under your paw
 // ======================================================
-// The water strip next to the cat
-function waterNear(x) {
-  return WATERS.reduce((best, w) => (Math.abs(x - (w.x0 + w.x1) / 2) < Math.abs(x - (best.x0 + best.x1) / 2) ? w : best));
+// Which water (0 = river, 1 = stream) is nearest to x at this z
+function waterNear(x, z) {
+  const list = watersAt(z);
+  const mid = (w) => Math.abs(x - (w.x0 + w.x1) / 2);
+  return mid(list[0]) <= mid(list[1]) ? 0 : 1;
 }
 
 // Where the cat's paw reaches into the water
@@ -1567,21 +1581,24 @@ function pawReach(clan) {
 }
 
 function tryFishing() {
-  if (!nearRiver(player.x)) {
+  if (!nearRiver(player.x, player.z)) {
     say("Find the river or the stream in your territory first.", 1.5);
     return;
   }
-  const w = waterNear(player.x);
+  const which = waterNear(player.x, player.z);
+  const w = watersAt(player.z)[which];
   // Face the water
   player.heading = player.x < (w.x0 + w.x1) / 2 ? Math.PI / 2 : -Math.PI / 2;
   snapCamera();
   const paw = pawSpot();
   fishing.fish = [];
   for (let i = 0; i < FISH_COUNT; i++) {
-    fishing.fish.push({ x: w.x0 + 0.4 + Math.random() * (w.x1 - w.x0 - 0.8), z: paw.z + (Math.random() - 0.5) * 8,
+    const fz = paw.z + (Math.random() - 0.5) * 8;
+    const fw = watersAt(fz)[which];
+    fishing.fish.push({ x: fw.x0 + 0.4 + Math.random() * (fw.x1 - fw.x0 - 0.8), z: fz,
                         heading: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 0.5, dart: 0, turn: 0 });
   }
-  Object.assign(fishing, { active: true, catches: 0, flash: 0, flashGood: false, water: w });
+  Object.assign(fishing, { active: true, catches: 0, flash: 0, flashGood: false, water: which });
   player.moving = false;
   player.running = false;
   player.scenting = false;
@@ -1598,9 +1615,9 @@ function stopFishing() {
 
 // Fish swim about in the water near the cat, and dart away after a splash
 function updateFish(dt) {
-  const w = fishing.water;
   const paw = pawSpot();
   for (const f of fishing.fish) {
+    const w = watersAt(f.z)[fishing.water];   // the water's edges where this fish is (R74)
     f.dart = Math.max(0, f.dart - dt);
     f.turn -= dt;
     if (f.turn <= 0) {
@@ -2012,7 +2029,7 @@ function taskSpot() {
     const own = trees.filter((t) => territoryAt(t.x, t.z) === clanName);
     return own.sort((a, b) => distance(a, player) - distance(b, player))[0] || spotFor(clanName, 20, 25);
   }
-  if (task === "fish") return { x: CAMP.x > 0 ? RIVER_X0 - 1 : STREAM_X0 - 1, z: CAMP.z };
+  if (task === "fish") return { x: watersAt(CAMP.z)[CAMP.x > 0 ? 0 : 1].x0 - 1, z: CAMP.z };
   if (task === "rogue") return ROGUE_HOME;
   return null;
 }
@@ -3093,8 +3110,8 @@ function ownLeaderName() {
 // R59: stepping stones across both waters
 function buildSteppingStones() {
   const list = [];
-  for (const w of WATERS) {
-    for (const z of STONE_CROSSINGS) {
+  for (const z of STONE_CROSSINGS) {
+    for (const w of watersAt(z)) {
       for (let x = w.x0 + 0.6; x < w.x1 - 0.3; x += 1.2) list.push({ x, z, r: 0.6 });
     }
   }
@@ -3106,14 +3123,14 @@ function onSteppingStone(body) {
 }
 
 // "deep" in the middle of the water, "shallow" along its banks, null on land
-function waterDepthAt(x) {
-  const w = WATERS.find((v) => x > v.x0 && x < v.x1);
+function waterDepthAt(x, z) {
+  const w = watersAt(z).find((v) => x > v.x0 && x < v.x1);
   if (!w) return null;
   return x - w.x0 < SHALLOW || w.x1 - x < SHALLOW ? "shallow" : "deep";
 }
 
 function swimming(body) {
-  return waterDepthAt(body.x) === "deep" && !onSteppingStone(body);
+  return waterDepthAt(body.x, body.z) === "deep" && !onSteppingStone(body);
 }
 
 // R64: sparrows perched in trees

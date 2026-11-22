@@ -715,7 +715,7 @@ function makeBladeGeometry() {
 
 // Same rule as the grass shader: no grass in water, on camp ground, or past the edge of the world
 function grassAllowedAt(x, z) {
-  if (WATERS.some((w) => x > w.x0 - 0.5 && x < w.x1 + 0.5)) return false;
+  if (watersAt(z).some((w) => x > w.x0 - 0.5 && x < w.x1 + 0.5)) return false;   // the river bends (R74)
   if (Math.abs(x) > WORLD_HALF || Math.abs(z) > WORLD_HALF) return false;
   return !Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < GRASS_CAMP_RADIUS);
 }
@@ -734,6 +734,7 @@ function makeGrass(random) {
     uWindow: { value: GRASS_WINDOW },
     uColors: { value: grassColorList() },
     uWaters: { value: new THREE.Vector4(RIVER_X0, RIVER_X1, STREAM_X0, STREAM_X1) },
+    uBend: { value: new THREE.Vector2(RIVER_BEND, (2 * Math.PI) / RIVER_WAVE) },   // R74: the river's bends
     uCamps: { value: Object.keys(CLANS).map((c) => new THREE.Vector2(campOf(c).x, campOf(c).z)) },
     uCampRadius: { value: GRASS_CAMP_RADIUS },
     uWorldHalf: { value: WORLD_HALF },
@@ -749,6 +750,7 @@ function makeGrass(random) {
       uniform float uWindow;
       uniform vec3 uColors[4];
       uniform vec4 uWaters;
+      uniform vec2 uBend;
       uniform vec2 uCamps[4];
       uniform float uCampRadius;
       uniform float uWorldHalf;
@@ -760,7 +762,8 @@ function makeGrass(random) {
         return start + mod(o - start, uWindow);
       }
       float grassAllowed(vec2 p) {
-        if (p.x > uWaters.x - 0.5 && p.x < uWaters.y + 0.5) return 0.0;
+        float shift = uBend.x * sin(p.y * uBend.y);
+        if (p.x > uWaters.x + shift - 0.5 && p.x < uWaters.y + shift + 0.5) return 0.0;
         if (p.x > uWaters.z - 0.5 && p.x < uWaters.w + 0.5) return 0.0;
         if (abs(p.x) > uWorldHalf || abs(p.y) > uWorldHalf) return 0.0;
         for (int i = 0; i < 4; i++) { if (distance(p, uCamps[i]) < uCampRadius) return 0.0; }
@@ -831,6 +834,34 @@ function initView(canvas) {
   buildScene();
 }
 
+// R74: a flat strip along a water, from `from` to `to` units past its west edge, bending with the river
+function makeWaterStrip(water, from, to, y, material) {
+  const n = water.bends ? 240 : 1;
+  const pos = [];
+  const uv = [];
+  const index = [];
+  for (let i = 0; i <= n; i++) {
+    const z = -WORLD_HALF + (i / n) * WORLD_HALF * 2;
+    const shift = water.bends ? riverShift(z) : 0;
+    pos.push(water.x0 + from + shift, y, z, water.x0 + to + shift, y, z);
+    uv.push(0, i / n, 1, i / n);
+    if (i < n) index.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);   // facing up
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(index);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, material);
+  // Where the middle of this strip is at z (read back from the drawn shape, for the tests)
+  mesh.userData.middleAt = (z) => {
+    const i = Math.round(((z + WORLD_HALF) / (WORLD_HALF * 2)) * n);
+    const p = geo.attributes.position;
+    return (p.getX(i * 2) + p.getX(i * 2 + 1)) / 2;
+  };
+  return mesh;
+}
+
 // Build the whole world: 4 territories, each with its own look
 function buildScene() {
   if (!view) return;
@@ -889,11 +920,11 @@ function buildScene() {
   waterMap.needsUpdate = true;
   waterMap.repeat.set(1, 60);
   const waterMat = new THREE.MeshPhongMaterial({ color: "#3f7fb8", shininess: 80, transparent: true, opacity: 0.65, map: waterMap });   // see the fish (R35)
+  let riverMesh = null;
   for (const w of WATERS) {
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(w.x1 - w.x0, WORLD_HALF * 2), waterMat);
-    water.rotation.x = -Math.PI / 2;
-    water.position.set((w.x0 + w.x1) / 2, 0.03, 0);
+    const water = makeWaterStrip(w, 0, w.x1 - w.x0, 0.03, waterMat);   // the river bends (R74)
     scene.add(water);
+    if (w.bends) riverMesh = water;
   }
 
   // Extra details for each kind of land
@@ -909,7 +940,7 @@ function buildScene() {
     const z = -WORLD_HALF + random() * WORLD_HALF * 2;
     const place = biomeAt(x, z);
     const nearCamp = Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < CAMP_CLEARING);
-    if (nearRiver(x) || nearCamp) continue;
+    if (nearRiver(x, z) || nearCamp) continue;
     if (place === "marsh" && i % 3 === 0) {
       // Marsh pools with reeds (ShadowClan, R6)
       const r = 1.5 + random() * 3;
@@ -943,7 +974,8 @@ function buildScene() {
   }
   // Reeds along the big river in RiverClan land
   for (let z = -WORLD_HALF; z < 0; z += 2.5) {
-    for (const x of [RIVER_X0 - 0.3, RIVER_X1 + 0.3]) {
+    const rw = watersAt(z)[0];
+    for (const x of [rw.x0 - 0.3, rw.x1 + 0.3]) {
       const reed = new THREE.Mesh(reedGeo, reedMat);
       reed.position.set(x + (random() - 0.5), 0.6, z + random());
       scene.add(reed);
@@ -1125,24 +1157,22 @@ function buildScene() {
   const shallowMat = new THREE.MeshPhongMaterial({ color: "#6fa8c8", shininess: 60, transparent: true, opacity: 0.5 });
   for (const w of WATERS) {
     for (const side of [-1, 1]) {
-      const bank = new THREE.Mesh(new THREE.PlaneGeometry(1.2, WORLD_HALF * 2), bankMat);
-      bank.rotation.x = -Math.PI / 2;
-      bank.position.set(side < 0 ? w.x0 - 0.6 : w.x1 + 0.6, 0.012, 0);
+      const width = w.x1 - w.x0;
+      const bank = makeWaterStrip(w, side < 0 ? -1.2 : width, side < 0 ? 0 : width + 1.2, 0.012, bankMat);
       scene.add(bank);
       banks.push(bank);
-      const shallow = new THREE.Mesh(new THREE.PlaneGeometry(SHALLOW, WORLD_HALF * 2), shallowMat);
-      shallow.rotation.x = -Math.PI / 2;
-      shallow.position.set(side < 0 ? w.x0 + SHALLOW / 2 : w.x1 - SHALLOW / 2, 0.035, 0);
+      const shallow = makeWaterStrip(w, side < 0 ? 0 : width - SHALLOW, side < 0 ? SHALLOW : width, 0.035, shallowMat);
       scene.add(shallow);
     }
   }
   const pebbleGeo = new THREE.DodecahedronGeometry(0.12, 0);
   const pebbles = [];
   for (let i = 0; i < 160; i++) {
-    const w = WATERS[i % 2];
+    const pz = -WORLD_HALF + random() * WORLD_HALF * 2;
+    const w = watersAt(pz)[i % 2];
     const side = random() < 0.5 ? w.x0 - random() * 1.2 : w.x1 + random() * 1.2;
     const pebble = new THREE.Mesh(pebbleGeo, stoneMat);
-    pebble.position.set(side, 0.03, -WORLD_HALF + random() * WORLD_HALF * 2);
+    pebble.position.set(side, 0.03, pz);
     pebble.scale.set(0.6 + random(), 0.4 + random() * 0.4, 0.6 + random());
     scene.add(pebble);
     pebbles.push(pebble);
@@ -1151,11 +1181,12 @@ function buildScene() {
   const lilyGeo = new THREE.CircleGeometry(0.35, 10, 0.4, Math.PI * 2 - 0.4);   // a notch cut out
   const lilyPads = [];
   for (let i = 0; i < 70; i++) {
-    const w = WATERS[i % 2];
+    const lz = -WORLD_HALF + random() * WORLD_HALF * 2;
+    const w = watersAt(lz)[i % 2];
     const pad = new THREE.Mesh(lilyGeo, lilyMat);
     pad.rotation.x = -Math.PI / 2;
     pad.rotation.z = random() * Math.PI * 2;
-    pad.position.set(w.x0 + 0.3 + random() * (w.x1 - w.x0 - 0.6), 0.045, -WORLD_HALF + random() * WORLD_HALF * 2);
+    pad.position.set(w.x0 + 0.3 + random() * (w.x1 - w.x0 - 0.6), 0.045, lz);
     scene.add(pad);
     lilyPads.push(pad);
     if (i % 5 === 0) {
@@ -1253,6 +1284,7 @@ function buildScene() {
     playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels, kitModels,
     rain, fishModels, ripple, lightningFlash: 0, greatOak, medicineCatModels, stolenModel, raiderModels: [], leaderModels: [],
     preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
+    riverMesh,
     groundMaterials, barkMaterial: Object.values(trunkMats)[0], rockMaterial: stoneMat, hutMaterial: hutMaterial(false), waterMaterial: waterMat,
     banks, pebbles, lilyPads, stoneModels, jumpingFish, splash, pileStack, pileModels: [], markerModels, leaves, snow, spotMarkers,
     rogueMateModels: [], leafMats, leafColors: {}, builtStones: steppingStones.length,
@@ -1328,7 +1360,7 @@ function updateTreesAndGrass(t, centre) {
 
 // What the player's cat is doing, for its pose and tail (R28)
 function playerPose(size, t) {
-  const swimming = inRiver(player.x) && !player.climbing;
+  const swimming = inRiver(player.x, player.z) && !player.climbing && !player.onBranch;
   const rolling = player.dodgeTimer > 0;
   return {
     x: player.x, y: player.y - (swimming ? 0.25 * size : 0), z: player.z, heading: player.heading, size,
@@ -1619,12 +1651,14 @@ function updateRound6View(t, cam) {
   // R59: the water flows; a fish jumps now and then near you; a splash where you walked in
   view.waterMaterial.map.offset.y = -t * CURRENT_SPEED / (WORLD_HALF * 2) * 60;
   const jump = (t % 7) / 1.2;   // a jump lasts 1.2 s every 7 s
-  const water = WATERS.reduce((a, b) => (Math.abs(player.x - (a.x0 + a.x1) / 2) < Math.abs(player.x - (b.x0 + b.x1) / 2) ? a : b));
+  const which = waterNear(player.x, player.z);
+  const water = watersAt(player.z)[which];
   const nearWater = playing && Math.abs(player.x - (water.x0 + water.x1) / 2) < 25;
   view.jumpingFish.visible = nearWater && jump < 1;
   if (view.jumpingFish.visible) {
-    const z = player.z + 6 + Math.floor(t / 7) % 5 * 2;
-    view.jumpingFish.position.set((water.x0 + water.x1) / 2 + Math.sin(Math.floor(t / 7)) * 1.5, Math.sin(jump * Math.PI) * 0.9 - 0.05, z - jump * 1.5);
+    const z = player.z + 6 + Math.floor(t / 7) % 5 * 2 - jump * 1.5;
+    const there = watersAt(z)[which];   // the river bends (R74)
+    view.jumpingFish.position.set((there.x0 + there.x1) / 2 + Math.sin(Math.floor(t / 7)) * 1.5, Math.sin(jump * Math.PI) * 0.9 - 0.05, z);
     view.jumpingFish.rotation.set(-Math.cos(jump * Math.PI) * 0.9, Math.PI, 0);
   }
   view.splash.visible = playing && player.splashTimer > 0;
