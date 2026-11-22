@@ -7,11 +7,13 @@
 const GAME_KEYS = ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
 window.addEventListener("keydown", (e) => {
+  startAudio();   // R61: browsers only allow sound after a key press or click
   if (!keys[e.code]) pressed[e.code] = true;
   keys[e.code] = true;
   if (playing && GAME_KEYS.includes(e.code)) e.preventDefault(); // stop the page from scrolling
 });
 window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+window.addEventListener("pointerdown", () => startAudio());
 window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
 
 // ======================================================
@@ -48,10 +50,12 @@ function mainTask() {
   // R44: the mentor's tasks
   if (stage === 1) {
     const task = currentTask();
-    const where = taskSpot() ? directionTo(taskSpot()) : "";
+    // R67: the next border marker is always pointed to, with how far it is
+    const where = !taskSpot() ? "" : task === "patrol" ? ` (${turnHint(taskSpot())}, ${Math.round(distance(player, taskSpot()))} paces)` : directionTo(taskSpot());
     const text = {
       patrol: `Border patrol: marker ${markersVisited + 1} of ${BORDER_MARKERS.length}`,
       squirrel: "Hunt a squirrel (stalk with Shift, pounce with E)",
+      climb: `Climb a tree (${player.y.toFixed(1)} of ${CLIMB_TASK_HEIGHT} up)`,
       fish: `Catch fish at the water (${fishing.catches}/${FISH_FOR_TASK})`,
       rogue: "Chase off the rogue",
     }[task];
@@ -98,7 +102,9 @@ function updateHud() {
   setText($("task"), taskText());
   const phase = dayPhase();
   const sky = { clear: "Clear", rain: "Rain", fog: "Fog", wind: "Windy", storm: "Thunderstorm" }[weather];   // R30
-  setText($("clock"), `Day ${day} · ${clockText()} · ${phase[0].toUpperCase() + phase.slice(1)} · ${sky}`);
+  const s = season();   // R69
+  setText($("clock"), `Day ${day} · ${s[0].toUpperCase() + s.slice(1)} · ${clockText()} · ${phase[0].toUpperCase() + phase.slice(1)} · ${sky}` +
+                      (lookingOut() ? " · Lookout: you can see far from up here (M for the map)" : ""));   // R64
 
   // R37: a leader's lives
   $("lives").classList.toggle("hidden", !(playing && role === "Leader"));
@@ -280,6 +286,7 @@ function buildMapLegend() {
 
 let mapWasOpen = false;
 let mapDrawnAt = -1;
+let mapShowsSpotted = false;   // R64: the map shows what you can see from high in a tree
 
 function updateMap() {
   const open = playing && ui.map;
@@ -332,6 +339,23 @@ function drawMap() {
     c.fill();
     c.fillStyle = "#fff";
     c.fillText(name === clanName ? `${name} (home)` : name, p.x, p.y + 22);
+  }
+  // R67: border markers in yellow, the next one bigger
+  BORDER_MARKERS.forEach((mk, i) => {
+    const q = mapToCanvas(mk.x, mk.z);
+    c.fillStyle = "#ffd86b";
+    c.beginPath();
+    c.arc(q.x, q.y, i === markersVisited ? 6 : 4, 0, Math.PI * 2);
+    c.fill();
+  });
+  // R64: from high in a tree you see prey (green) and enemies (red) far away
+  mapShowsSpotted = lookingOut();
+  for (const t of spottedFromTree()) {
+    const q = mapToCanvas(t.x, t.z);
+    c.fillStyle = PREY_KINDS[t.kind] ? "#7dff7a" : "#ff4a3a";
+    c.beginPath();
+    c.arc(q.x, q.y, 3, 0, Math.PI * 2);
+    c.fill();
   }
   // You: a white dot with an arrow for the way you face
   const p = mapToCanvas(player.x, player.z);
@@ -457,6 +481,9 @@ function buildMenu() {
   $("main-menu").querySelector("[data-action='resume']").addEventListener("click", () => { ui.menu = false; updateHud(); document.activeElement.blur(); });
   $("main-menu").querySelector("[data-action='restart']").addEventListener("click", restartFromMenu);
   $("main-menu").querySelector("[data-action='newcat']").addEventListener("click", showMenu);
+  // R61: volume and mute
+  $("volume").addEventListener("input", (e) => setVolume(e.target.value));
+  $("mute").addEventListener("change", (e) => setMuted(e.target.checked));
   updatePreviewName();
 }
 
@@ -511,6 +538,7 @@ function loop(now) {
   update(dt);
   renderFrame();
   if (!playing) renderPreview();
+  updateSound();   // R61
   requestAnimationFrame(loop);
 }
 

@@ -702,3 +702,15 @@ body {
 #controls-help p {
   margin: 2px 0;
 }
+
+/* R61: volume slider and mute switch in the Esc menu */
+#main-menu .volume {
+  display: block;
+  margin: 8px auto;
+  color: #f3e6c8;
+  font-size: 15px;
+}
+#main-menu .volume input[type="range"] {
+  width: 160px;
+  vertical-align: middle;
+}
