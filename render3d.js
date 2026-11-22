@@ -868,9 +868,27 @@ function makeWaterStrip(water, from, to, y, material) {
   return mesh;
 }
 
+// Free the graphics memory of a scene that is being replaced (each rebuild would otherwise keep the old
+// meshes and textures on the graphics card until the page is closed)
+function disposeScene(scene) {
+  const textures = new Set();
+  scene.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    if (o.userData && o.userData.fadeMat) mats.push(o.userData.fadeMat);
+    for (const m of mats) {
+      if (m.map) textures.add(m.map);
+      m.dispose();
+    }
+  });
+  textures.forEach((t) => t.dispose());
+  if (view.renderer.renderLists) view.renderer.renderLists.dispose();
+}
+
 // Build the whole world: 4 territories, each with its own look
 function buildScene() {
   if (!view) return;
+  if (view.scene) disposeScene(view.scene);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY.day);
   scene.fog = new THREE.Fog(SKY.day, 40, 150);
@@ -1820,7 +1838,7 @@ function updateRound7View() {
   // R70: tags over the important cats that are near you
   const cats = importantCats();
   if (view.nametags.length !== cats.length || view.nametags.some((t, i) => t.userData.source !== cats[i] || t.userData.text !== cats[i].name)) {
-    view.nametags.forEach((t) => view.scene.remove(t));
+    view.nametags.forEach((t) => { view.scene.remove(t); t.material.map.dispose(); t.material.dispose(); });
     view.nametags = cats.map((c) => {
       const tag = makeNametag(c.name);
       tag.userData.source = c;

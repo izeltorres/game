@@ -112,3 +112,14 @@
   the apprentice's rogue, and later packs 4 minutes after one is chased off (were 20 and 40 seconds).
 - Fix the deputy's apprentice so you can face it to tussle in battle practice (it kept running round
   behind you).
+
+## Session 9 (2026-11-22) - Round 8
+
+- Build Round 8 (R78–R84). R78 and R79 are also listed after Round 7; they are built in Round 8.
+- R78: borders move when your clan wins or loses fights and raids against a neighbour.
+- R79: rogues can raid a camp but can't fight there, because of all the clan cats.
+- R80: medicine cats stay in their huts; hurt cats go into the hut.
+- R81: things between the camera and your cat fade.
+- R82: branches only high up, so only ThunderClan can use them.
+- R83: warriors face one rogue; deputies and leaders face the packs.
+- R84: autosave, a Continue button, a Save button in the Esc menu, and 3 save slots.

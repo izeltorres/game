@@ -11,7 +11,7 @@ patrols on their land.
    connection the first time so the free Three.js 3D library can load.
 2. Make your cat: type a name, then pick its fur colour, eye colour, pattern (Solid, Tabby, Patches, Tuxedo,
    Calico, Spotted or Colorpoint) and clan.
-3. Press **Start**.
+3. Press **Start**. Saved cats are listed under Start: press **Continue** to carry on (up to 3 saved cats; Delete removes one).
 
 The game fills the browser window. Press **Esc** for the menu, which also lists all the controls and has a
 volume slider and a mute switch. Music, weather and nature sounds and cat noises start after your first key
@@ -38,10 +38,11 @@ The camera sits low and close behind your cat and swings round smoothly when you
 | R | Bite (warriors and older, or apprentices with the fighter mentor) |
 | Esc | Main menu: Resume, Restart (same cat, start over as a kit), New cat. While fishing, Esc stops fishing |
 | G | Drop the prey you are carrying (at the fresh-kill pile it goes onto the pile; pick it up again with E) |
-| Walk into a tree | Climb it. Press E at a branch to lie along it (also safe from enemies). High up you can see far (prey and enemies are marked, also on the map), and most enemies can't reach you. Press E to catch a sparrow perched at your height |
+| Walk into a tree | Climb it. ThunderClan cats can press E at a branch (3 units up or higher) to lie along it, safe from enemies. High up you can see far (prey and enemies are marked, also on the map), and most enemies can't reach you. Press E to catch a sparrow perched at your height |
 | 1 / 2 / 3 / 4 | Leader only, with the pouch closed: order clanmates to Follow, Hunt, Guard, or go on a Big hunt |
 | Click | Pick the herb under the aiming dot in the middle of the screen |
 | V | Call a patrol of your clan's warriors to help when a rogue pack attacks you (once a minute) |
+| Esc → Save | Save now (the game also saves itself every 30 seconds) |
 
 ### The world
 
@@ -58,18 +59,20 @@ The world is split into 4 clan territories. Press **M** to see the map.
   will attack you, and the HUD turns red. Leave their land and they let you go.
 - In the middle of the world stands the **Great Oak**. Leaders are called there for full-moon **Gatherings**; nobody
   attacks in its clearing.
+- **Borders move:** win enough fights against a neighbouring clan (or drive off its raids) and the border moves 10 units into its land; lose to it and you lose land.
 - Every other clan has a **rivalry** with yours (shown on the map). Fights and trespassing raise it, and good speeches
   and decisions lower it. Friendly clans only warn you off; hostile ones spot you sooner and raid your camp.
-- Every camp has a **medicine cat**. Yours, Thymeleaf, heals you (E next to them, once a minute) and treats hurt clanmates.
+- Every camp has a **medicine cat**, who stays in the medicine den. Yours, Thymeleaf, heals you (go into the den and press E next to her, once a minute); hurt clanmates go in to be treated.
 - Kits play in every camp. Yours chase each other, pounce and tumble about; other clans' kits hide in their
   nursery when you come near. Your kits come up to you once you are an apprentice; press E to play a pounce game.
 - Cats are solid: you can't walk through them. Camp cats groom, greet, share prey and argue with each other, and
   walk to the fresh-kill pile to eat when they are hungry. Every clan's **leader** stands by its Highrock.
 - **The river** winds through WindClan and RiverClan land and flows south: in deep water the current carries you along. You wade (slower, no current) in the
   shallows along the banks, and stepping stones cross both waters.
-- **Rogues:** after your apprenticeship they come in packs of 2–3 that roam your territory, hunt you, circle and
-  sidestep in a fight, and raid your camp if nobody chases them off. They are tough (the leader has 130 health), so
-  press V to call your clan's warriors to help. Beat the leader and the whole pack runs.
+- **Rogues:** after your apprenticeship a single rogue roams your territory; as deputy and leader you face packs of
+  2–3. They hunt you, circle and sidestep in a fight, and slip into your camp to steal fresh-kill if nobody chases
+  them off, but they never fight in a camp (too many clan cats). Against a pack, press V to call your clan's
+  warriors to help. Beat the leader and the whole pack runs.
 - Your camp has five huts you can walk into through their doorways (the nursery, the apprentices' den,
   the warriors' den, the medicine den and the leader's den in front of the Highrock), and a fresh-kill pile.
   Trees, rocks and hut walls are solid.
@@ -154,7 +157,7 @@ The world is split into 4 clan territories. Press **M** to see the map.
 - `script.js`: keyboard, menu, HUD, map, herb pouch and main loop.
 - `sound.js`: music, background sounds and cat noises, all made in the browser (Web Audio).
 - `tests.html`: automatic tests. Open it in a browser; it plays through the game and lists PASS/FAIL
-  for each check, each named with its requirement ID (R1–R77).
+  for each check, each named with its requirement ID (R1–R84).
 - `problem.md`, `spec.md`: what the game should be.
 - `decision.md`, `docs/decisions/`, `handoff.md`, `handoff-round-N.md`: project notes and decision records.
 

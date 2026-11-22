@@ -431,8 +431,10 @@ function biome() {
 function keepInTerritory(body, clan) {
   const c = CLANS[clan];
   const edge = WORLD_HALF - 1;
-  body.x = c.sx < 0 ? clamp(body.x, -edge, -0.5) : clamp(body.x, 0.5, edge);
-  body.z = c.sz < 0 ? clamp(body.z, -edge, -0.5) : clamp(body.z, 0.5, edge);
+  const bx = borders.x[c.sz];   // R78: the borders on this clan's sides, wherever they have moved to
+  const bz = borders.z[c.sx];
+  body.x = c.sx < 0 ? clamp(body.x, -edge, bx - 0.5) : clamp(body.x, bx + 0.5, edge);
+  body.z = c.sz < 0 ? clamp(body.z, -edge, bz - 0.5) : clamp(body.z, bz + 0.5, edge);
 }
 
 function resetGame() {
