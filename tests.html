@@ -523,8 +523,8 @@
           return dist2d(theMentor(), CAMP) < 9;
         });
         check("R4", "rogue runs away", () => rogue.state === "gone" || (step(5), rogue.state === "gone"));
-        check("R9", "a new rogue appears some time after the last one is chased off: now a roaming pack (R62), after 40 s (R77)", () => {
-          step(ROGUE_PACK_RESPAWN + 1);
+        check("R9", "a new rogue appears some time after the last one is chased off: now a roaming pack (R62)", () => {
+          step(ROGUE_RESPAWN + 1);   // (the first pack comes 20 s after the apprentice's rogue; later packs wait 40 s, see R77)
           return rogue.state === "roaming" && rogue.hp === ROGUE_PACK_HP && rogueMates.length >= 1 && rogueMates.length <= 2;
         });
         check("R9", "winning fights after choosing a role is counted", () => {
@@ -2288,7 +2288,7 @@
             if (rogue.hp === ROGUE_PACK_HP) dodged++;
           }
           const before = { x: rogue.x, z: rogue.z };
-          rogue.cooldown = 1; rogue.windup = 0; step(0.5);
+          rogue.cooldown = 3; rogue.windup = 0; step(1.5);   // (long enough to close in and circle)
           return dodged > 2 && dodged < 25 && dist2d(rogue, before) > 0.3;
         });
         check("R62", "beating the pack leader makes the whole pack run", () => {
