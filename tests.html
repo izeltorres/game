@@ -1159,6 +1159,7 @@
           keys.KeyW = true; step(0.5); releaseAll();
           const stuck = dist2d(player, p) < 0.01;
           step(0.6);
+          player.heading = Math.PI;   // (walk away from the rogue: cats are solid, R58)
           keys.KeyW = true; step(0.3); releaseAll();
           return stuck && dist2d(player, p) > 0.3;
         });
