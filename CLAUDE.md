@@ -31,6 +31,8 @@ The game is called **Cat Clans**. The name is `GAME_NAME` in `game.js`; the page
   `game.js` talks to the page only through `hooks`.
 - Computer-controlled cats move only with `moveToward()` in `game.js`, which walks them around trees,
   rocks and huts. Changing their `x`/`z` directly lets them walk through walls or get stuck.
+- The big river bends (R74). Find water with `watersAt(z)`, `inRiver(x, z)`, `nearRiver(x, z)` and
+  `waterDepthAt(x, z)`; never compare with `RIVER_X0`/`RIVER_X1` directly (they are the edges at z = 0 only).
 - No image or sound files: textures are drawn on a canvas and sounds are made with Web Audio, because
   browsers block image files for WebGL when the page is opened from `file://`.
 - Never undo or amend a commit. Commit in small steps with messages that say what changed and why.
@@ -69,8 +71,11 @@ Test after a change.
   ```
 
   It prints the summary line (`ALL N TESTS PASSED`, or how many failed) and each failing check.
-  A full run takes about 12–15 minutes, longer than a foreground command may run, so run it in the background
-  and wait for it to finish. Two runs can go at the same time if each uses its own `--user-data-dir` folder.
+  A full run takes about 15–20 minutes, longer than a foreground command may run, so run it in the background
+  (timeout 1 800 000 ms or more) and wait for it to finish. Two or three runs can go at the same time if each
+  uses its own `--user-data-dir` folder.
+- Requirement IDs come from `problem.md`. If the owner's numbers clash with IDs already in `spec.md` or the
+  tests, ask the owner how to renumber before writing the spec.
 - Things happen on their own during long checks (rogue packs roam and attack, camp cats eat from the pile
   and pair up, kits walk up to you), and cats are solid. A check must set up the state it needs rather than
   rely on what earlier checks left behind.
