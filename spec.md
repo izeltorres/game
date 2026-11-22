@@ -2,7 +2,7 @@ spec.md
 
 # spec: warrior cats inspired themed game
 
-Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34), Round 5 requirements R47–R57, Round 6 requirements R58–R69, plus R69a–R69c settled by the owner after Round 5, and Round 7 requirements R70–R77).
+Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34), Round 5 requirements R47–R57, Round 6 requirements R58–R69, plus R69a–R69c settled by the owner after Round 5, Round 7 requirements R70–R77 and Round 8 requirements R78–R84).
 
 ## Purpose
 A rbg game that allows you play as a 3rd perspective account.
@@ -702,3 +702,72 @@ numbers don't clash.
 ### Controls (Round 7)
 - **V:** call a patrol of your clan's warriors to help against a rogue pack (R75).
 - **E** while climbing at a branch: step onto the branch, or back to the trunk (R73).
+
+## Round 8
+
+R78–R84 come from `problem.md` (R78 and R79 are also written at the end of Round 7's list; they are
+built in Round 8), with the owner's answers to the questions asked at the start of the round.
+
+### R78. Territories can change
+- Each pair of neighbouring clans shares a border: a north–south border in the north half and in the
+  south half, and an east–west border in the west half and in the east half. The borders start on the
+  middle lines (x = 0 and z = 0), as before.
+- Your clan wins and loses land against its **two neighbours** through fights and raids. For each
+  neighbour there is a land score:
+  - **+1** for every fight you win against one of that clan's cats.
+  - **+3** when you drive off a raid of theirs before it steals anything.
+  - **−1** when one of that clan's cats beats you (you faint, or a leader loses a life).
+  - **−3** when their raid steals from your fresh-kill pile.
+- When the score reaches **+5**, the shared border moves **10 units** into their land; at **−5**, it
+  moves 10 units into yours. The score then starts again from 0.
+- A border can move at most **30 units** from the middle line, so no camp is ever taken.
+- Everything that uses territories follows the new borders: where patrols attack, the HUD, where prey
+  and patrols stay, trespassing (R54), and the map.
+- The clan across the corner (not a neighbour) can't take or lose land with you.
+
+### R79. Rogues can't fight in a camp
+- There are too many clan cats in a camp for rogues to fight there:
+  - Rogues never attack you while you are in a camp (within 15 units of its middle). If you run into
+    camp during a fight, they back off and wait outside.
+  - A rogue raid (R62) still slips into your camp and steals a piece of fresh-kill, then runs off, but
+    it **no longer hurts a camp cat** (changes R62).
+
+### R80. Medicine cats stay in their dens
+- Every clan's medicine cat stays inside its medicine den all the time.
+- A camp cat that has been hurt for a while (R52) walks into the medicine den to be treated, then
+  goes back to camp. If you are your clan's medicine cat, hurt cats still wait for you in the den.
+- A beaten rival cat (R69b) limps into its clan's medicine den to rest and is treated there.
+- To be healed by Thymeleaf (R52), go into your medicine den and press E next to her.
+
+### R81. Nothing blocks your view
+- When a tree (its trunk or its leaves), another cat or a hut wall is between the camera and your
+  cat, it turns see-through while it is in the way, and back to normal afterwards.
+- The hut you are inside never fades (the camera is already inside it, R25).
+
+### R82. Branches only higher up (changes R73)
+- Branches now start at **3 units** up (the low branch 3–3.8, the high one 4.5–5.5, always below
+  where the tree can be climbed).
+- Only ThunderClan climbs high enough (6 units) to reach them; the other clans (2 units) can't use
+  branches. Everything else in R73 stays.
+
+### R83. Rogues grow with your rank (changes R62 and R77)
+- After the apprenticeship, a **warrior** (or medicine cat) faces **one** rogue at a time: it roams,
+  hunts you, circles and sidesteps like a pack rogue (R62), and has 100 health and 18 damage.
+- A **deputy** or **leader** faces the rogue **packs** of 2–3 from R62/R77 (leader 130, others 80).
+- Calling a patrol (R75) is still only for packs.
+
+### R84. Save progress
+- Up to **3 save slots** are kept in the browser (no account or server needed).
+- **Autosave:** the game saves itself every 30 seconds, when you wake up from sleeping, when you rank
+  up or change path, and when the page is closed.
+- **Start menu:** each saved cat is listed (name, clan, rank, day) with **Continue** and **Delete**
+  buttons. Starting a new cat uses an empty slot; if all 3 are full, you are asked which one to
+  replace.
+- **Esc menu:** a **Save** button saves now.
+- What is saved: your cat (name, look, clan), rank and path, mentor and task, kit catches, promotion
+  progress, medicine rank, herb store and quest, health, food, lives, herb pouch, rivalries, borders
+  (R78), the day, time and season, the fresh-kill pile, and your apprentice's lesson. Cats, prey and
+  weather start fresh when a game is loaded.
+
+### Controls (Round 8)
+- **Esc menu → Save** (R84). The start menu lists saved cats with Continue and Delete.
