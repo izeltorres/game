@@ -35,6 +35,106 @@ function mat(color, extra) {
 }
 
 // ======================================================
+// Textures (R60): drawn on a canvas when the game starts, so there are no image files
+// ======================================================
+const TREE_SWAY = 0.5;   // R68: trees sway half as much as in Round 5
+const textureCache = {};
+
+// A grey-to-white pattern; the material's colour tints it
+function makeTexture(kind) {
+  if (textureCache[kind]) return textureCache[kind];
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const c = canvas.getContext("2d");
+  const random = makeRandom(kind.length * 31 + 5);
+  const grey = (v, a) => `rgba(${v}, ${v}, ${v}, ${a === undefined ? 1 : a})`;
+  c.fillStyle = grey(235);
+  c.fillRect(0, 0, size, size);
+  if (kind === "ground" || kind === "dirt" || kind === "rock") {
+    // Speckles: small light and dark dots (pebbles and grit for dirt, lichen for rock)
+    const count = kind === "rock" ? 500 : 900;
+    for (let i = 0; i < count; i++) {
+      c.fillStyle = grey(150 + Math.floor(random() * 105), 0.6);
+      const r = kind === "dirt" ? 0.5 + random() * 2 : 0.5 + random() * 1.5;
+      c.beginPath();
+      c.arc(random() * size, random() * size, r, 0, Math.PI * 2);
+      c.fill();
+    }
+    if (kind === "rock") {
+      c.strokeStyle = grey(120, 0.5);
+      for (let i = 0; i < 8; i++) {
+        c.beginPath();
+        c.moveTo(random() * size, random() * size);
+        c.lineTo(random() * size, random() * size);
+        c.stroke();
+      }
+    }
+  } else if (kind === "bark") {
+    // Long up-and-down cracks
+    for (let i = 0; i < 40; i++) {
+      c.strokeStyle = grey(110 + Math.floor(random() * 80), 0.7);
+      c.lineWidth = 1 + random() * 2;
+      const x = random() * size;
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.bezierCurveTo(x + (random() - 0.5) * 10, size / 3, x + (random() - 0.5) * 10, size * 2 / 3, x, size);
+      c.stroke();
+    }
+  } else if (kind === "fur") {
+    // Short soft strokes, all leaning the same way
+    for (let i = 0; i < 1400; i++) {
+      c.strokeStyle = grey(185 + Math.floor(random() * 70), 0.5);
+      const x = random() * size;
+      const y = random() * size;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x + 1, y + 4 + random() * 3);
+      c.stroke();
+    }
+  } else if (kind === "bramble") {
+    // Woven twigs criss-crossing
+    for (let i = 0; i < 60; i++) {
+      c.strokeStyle = grey(90 + Math.floor(random() * 90), 0.8);
+      c.lineWidth = 1.5 + random() * 2;
+      const x = random() * size;
+      const y = random() * size;
+      const a = random() * Math.PI;
+      c.beginPath();
+      c.moveTo(x - Math.cos(a) * 30, y - Math.sin(a) * 30);
+      c.lineTo(x + Math.cos(a) * 30, y + Math.sin(a) * 30);
+      c.stroke();
+    }
+  } else if (kind === "water") {
+    // Wavy light lines
+    for (let i = 0; i < 26; i++) {
+      c.strokeStyle = grey(255, 0.35 + random() * 0.3);
+      c.lineWidth = 1 + random();
+      const y = random() * size;
+      const x = random() * size;
+      c.beginPath();
+      for (let k = 0; k <= 20; k++) c.lineTo(x + k * 2, y + Math.sin(k * 0.8) * 1.5);
+      c.stroke();
+    }
+    c.globalCompositeOperation = "multiply";
+    c.fillStyle = grey(210);
+    c.fillRect(0, 0, size, size);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  textureCache[kind] = texture;
+  return texture;
+}
+
+// A material with a texture repeated `repeat` times (each material gets its own copy so repeats can differ)
+function texturedMat(color, kind, repeatX, repeatY, extra) {
+  const map = makeTexture(kind).clone();
+  map.needsUpdate = true;
+  map.repeat.set(repeatX, repeatY === undefined ? repeatX : repeatY);
+  return mat(color, Object.assign({ map }, extra || {}));
+}
+
+// ======================================================
 // Cats (R21: better shape and 7 patterns; R28: a tail that moves like a real cat's)
 // ======================================================
 // A cat facing +z, about 1 unit long at size 1.
@@ -44,7 +144,7 @@ function makeCatModel(catLook) {
   const pattern = catLook.pattern;
   // Colorpoint cats have a light body; their fur colour shows on the "points" (R21)
   const bodyColor = pattern === "Colorpoint" ? new THREE.Color(catLook.fur).lerp(new THREE.Color("#f2ead8"), 0.7) : new THREE.Color(catLook.fur);
-  const fur = mat(bodyColor);
+  const fur = mat(bodyColor, { map: makeTexture("fur") });   // R60: fur texture
   const darkColor = new THREE.Color(catLook.fur).multiplyScalar(pattern === "Colorpoint" ? 0.5 : 0.55);
   const dark = mat(darkColor);
   const white = mat(catLook.fur === FURS.White && pattern === "Patches" ? FURS.Ginger : WHITE_FUR);
@@ -545,12 +645,20 @@ function makeShadow(radius) {
 // ======================================================
 // Huts (R25): a bramble dome with a doorway, a mossy nest inside
 // ======================================================
+// R60: woven brambles; one shared material for ordinary huts and one for medicine dens
+const hutMaterials = {};
+function hutMaterial(medicine) {
+  const key = medicine ? "medicine" : "hut";
+  if (!hutMaterials[key]) hutMaterials[key] = texturedMat(medicine ? "#4a6a3a" : "#5a4a30", "bramble", 3, 2, { flatShading: true, side: THREE.DoubleSide });
+  return hutMaterials[key];
+}
+
 function makeHut(h) {
   const g = new THREE.Group();
   // The dome leaves a gap around local -x; the group is turned so the gap faces the door
   const gap = HUT_DOOR + 0.04;
   const domeGeo = new THREE.SphereGeometry(h.R, 24, 10, gap, Math.PI * 2 - gap * 2, 0, Math.PI / 2);
-  const dome = new THREE.Mesh(domeGeo, mat(h.id === "medicine" ? "#4a6a3a" : "#5a4a30", { flatShading: true, side: THREE.DoubleSide }));
+  const dome = new THREE.Mesh(domeGeo, hutMaterial(h.id === "medicine"));
   dome.scale.y = 0.75;
   g.add(dome);
   // A few brambles on top, so it doesn't look like a smooth bowl
@@ -754,25 +862,33 @@ function buildScene() {
   scene.add(stars);
 
   // Ground: one square per territory, plus the land past the edge of the world
+  const groundMaterials = [];
   const edge = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_HALF * 4, WORLD_HALF * 4), mat("#3d5a30"));
   edge.rotation.x = -Math.PI / 2;
   edge.position.y = -0.02;
   scene.add(edge);
   for (const clan in CLANS) {
     const c = CLANS[clan];
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_HALF, WORLD_HALF), mat(PLACES[c.biome].ground));
+    const groundMat = texturedMat(PLACES[c.biome].ground, "ground", 40);   // R60
+    groundMaterials.push(groundMat);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_HALF, WORLD_HALF), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(c.sx * WORLD_HALF / 2, 0, c.sz * WORLD_HALF / 2);
     scene.add(ground);
     // Bare earth in the camp
-    const earth = new THREE.Mesh(new THREE.CircleGeometry(GRASS_CAMP_RADIUS + 0.5, 32), mat("#7a6a4a"));
+    const earthMat = texturedMat("#7a6a4a", "dirt", 5);
+    groundMaterials.push(earthMat);
+    const earth = new THREE.Mesh(new THREE.CircleGeometry(GRASS_CAMP_RADIUS + 0.5, 32), earthMat);
     earth.rotation.x = -Math.PI / 2;
     earth.position.set(campOf(clan).x, 0.01, campOf(clan).z);
     scene.add(earth);
   }
 
   // The river and the stream
-  const waterMat = new THREE.MeshPhongMaterial({ color: "#3f7fb8", shininess: 80, transparent: true, opacity: 0.65 });   // see the fish (R35)
+  const waterMap = makeTexture("water").clone();   // R60: the water's ripples (moved along by the current, R59)
+  waterMap.needsUpdate = true;
+  waterMap.repeat.set(1, 60);
+  const waterMat = new THREE.MeshPhongMaterial({ color: "#3f7fb8", shininess: 80, transparent: true, opacity: 0.65, map: waterMap });   // see the fish (R35)
   for (const w of WATERS) {
     const water = new THREE.Mesh(new THREE.PlaneGeometry(w.x1 - w.x0, WORLD_HALF * 2), waterMat);
     water.rotation.x = -Math.PI / 2;
@@ -841,7 +957,7 @@ function buildScene() {
   const trunkMats = {};
   const leafMats = {};
   for (const name in PLACES) {
-    trunkMats[name] = mat(PLACES[name].trunk);
+    trunkMats[name] = texturedMat(PLACES[name].trunk, "bark", 2, 1);   // R60
     leafMats[name] = PLACES[name].leaves.map((c) => mat(c, { flatShading: true }));
   }
   const treeTops = [];
@@ -884,7 +1000,7 @@ function buildScene() {
   scene.add(grass);
 
   // Rocks from the game rules (R23): camp stones and the Highrocks
-  const stoneMat = mat("#8a8a80", { flatShading: true });
+  const stoneMat = texturedMat("#8a8a80", "rock", 1, 1, { flatShading: true });   // R60
   const stoneGeo = new THREE.DodecahedronGeometry(1, 0);
   for (const r of rocks) {
     if (r.kind === "greatoak") continue;   // drawn as a tree below (R48)
@@ -903,19 +1019,6 @@ function buildScene() {
     scene.add(model);
     if (h.clan === clanName) denModels.push(model);
   }
-
-  // The fresh-kill pile in your camp
-  const pileModel = new THREE.Group();
-  const pileMat = mat("#7a5a40");
-  for (let k = 0; k < 8; k++) {
-    const piece = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), pileMat);
-    piece.scale.set(0.18, 0.12, 0.26);
-    piece.position.set(Math.sin(k * 2.3) * 0.35, 0.1 + Math.floor(k / 4) * 0.15, Math.cos(k * 2.3) * 0.35);
-    piece.rotation.y = k;
-    pileModel.add(piece);
-  }
-  pileModel.position.set(FRESH_KILL.x, 0, FRESH_KILL.z);
-  scene.add(pileModel);
 
   // Herbs (R18): marigold has orange flowers, dock leaf has big green leaves
   const herbModels = herbs.map((h) => {
@@ -1015,11 +1118,144 @@ function buildScene() {
   ripple.visible = false;
   scene.add(ripple);
 
+  // ---------- Round 6 ----------
+  // R59: muddy banks, pebbles, shallow edges, lily pads and stepping stones
+  const banks = [];
+  const bankMat = texturedMat("#6a5a3e", "dirt", 1, 60);
+  const shallowMat = new THREE.MeshPhongMaterial({ color: "#6fa8c8", shininess: 60, transparent: true, opacity: 0.5 });
+  for (const w of WATERS) {
+    for (const side of [-1, 1]) {
+      const bank = new THREE.Mesh(new THREE.PlaneGeometry(1.2, WORLD_HALF * 2), bankMat);
+      bank.rotation.x = -Math.PI / 2;
+      bank.position.set(side < 0 ? w.x0 - 0.6 : w.x1 + 0.6, 0.012, 0);
+      scene.add(bank);
+      banks.push(bank);
+      const shallow = new THREE.Mesh(new THREE.PlaneGeometry(SHALLOW, WORLD_HALF * 2), shallowMat);
+      shallow.rotation.x = -Math.PI / 2;
+      shallow.position.set(side < 0 ? w.x0 + SHALLOW / 2 : w.x1 - SHALLOW / 2, 0.035, 0);
+      scene.add(shallow);
+    }
+  }
+  const pebbleGeo = new THREE.DodecahedronGeometry(0.12, 0);
+  const pebbles = [];
+  for (let i = 0; i < 160; i++) {
+    const w = WATERS[i % 2];
+    const side = random() < 0.5 ? w.x0 - random() * 1.2 : w.x1 + random() * 1.2;
+    const pebble = new THREE.Mesh(pebbleGeo, stoneMat);
+    pebble.position.set(side, 0.03, -WORLD_HALF + random() * WORLD_HALF * 2);
+    pebble.scale.set(0.6 + random(), 0.4 + random() * 0.4, 0.6 + random());
+    scene.add(pebble);
+    pebbles.push(pebble);
+  }
+  const lilyMat = mat("#3f8a3a", { side: THREE.DoubleSide });
+  const lilyGeo = new THREE.CircleGeometry(0.35, 10, 0.4, Math.PI * 2 - 0.4);   // a notch cut out
+  const lilyPads = [];
+  for (let i = 0; i < 70; i++) {
+    const w = WATERS[i % 2];
+    const pad = new THREE.Mesh(lilyGeo, lilyMat);
+    pad.rotation.x = -Math.PI / 2;
+    pad.rotation.z = random() * Math.PI * 2;
+    pad.position.set(w.x0 + 0.3 + random() * (w.x1 - w.x0 - 0.6), 0.045, -WORLD_HALF + random() * WORLD_HALF * 2);
+    scene.add(pad);
+    lilyPads.push(pad);
+    if (i % 5 === 0) {
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 4), mat("#f2d6e8"));
+      flower.position.set(pad.position.x, 0.09, pad.position.z);
+      scene.add(flower);
+    }
+  }
+  // Reeds along the stream too
+  for (let z = -WORLD_HALF; z < WORLD_HALF; z += 4) {
+    const reed = new THREE.Mesh(reedGeo, reedMat);
+    reed.position.set((random() < 0.5 ? STREAM_X0 - 0.3 : STREAM_X1 + 0.3) + (random() - 0.5) * 0.5, 0.6, z + random());
+    scene.add(reed);
+  }
+  const stoneModels = steppingStones.map((s) => {
+    const stone = new THREE.Mesh(new THREE.CylinderGeometry(s.r, s.r * 1.1, 0.25, 9), stoneMat);
+    stone.position.set(s.x, 0.08, s.z);
+    scene.add(stone);
+    return stone;
+  });
+  // A fish that jumps out of the water now and then, and a splash ring when you walk in
+  const jumpingFish = makeFishModel();
+  jumpingFish.scale.setScalar(2);
+  jumpingFish.visible = false;
+  scene.add(jumpingFish);
+  const splash = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.5, 20),
+    new THREE.MeshBasicMaterial({ color: "#e8f4ff", transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+  splash.rotation.x = -Math.PI / 2;
+  splash.visible = false;
+  scene.add(splash);
+
+  // R65: the pile is made of the real prey on it
+  const pileStack = new THREE.Group();
+  pileStack.position.set(FRESH_KILL.x, 0, FRESH_KILL.z);
+  scene.add(pileStack);
+
+  // R67: border markers are tall glowing posts
+  const markerModels = BORDER_MARKERS.map((mk) => {
+    const g = new THREE.Group();
+    const glowMat = mat("#ffd86b", { emissive: "#ffb830", emissiveIntensity: 0.5 });
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3.2, 8), mat("#6a4a2a", { map: makeTexture("bark") }));
+    post.position.y = 1.6;
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), glowMat);
+    ball.position.y = 3.35;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.1, 24),
+      new THREE.MeshBasicMaterial({ color: "#ffd86b", transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    g.add(post, ball, ring);
+    g.position.set(mk.x, 0, mk.z);
+    g.userData = { height: 3.2, glow: 0.5, glowMat, ring };
+    scene.add(g);
+    return g;
+  });
+
+  // R68: falling leaves around the camera, and R69: snow in leaf-bare
+  const maxLeaves = 600;
+  const leafPos = new Float32Array(maxLeaves * 3);
+  for (let i = 0; i < maxLeaves; i++) leafPos.set([(random() - 0.5) * 50, random() * 14, (random() - 0.5) * 50], i * 3);
+  const leafGeo = new THREE.BufferGeometry();
+  leafGeo.setAttribute("position", new THREE.BufferAttribute(leafPos, 3));
+  const leaves = new THREE.Points(leafGeo, new THREE.PointsMaterial({ color: "#c8762a", size: 0.18 }));
+  leaves.frustumCulled = false;
+  leaves.userData.amount = 0;
+  scene.add(leaves);
+  const snow = new THREE.Group();
+  const snowCover = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_HALF * 2, WORLD_HALF * 2),
+    new THREE.MeshLambertMaterial({ color: "#f4f8ff", transparent: true, opacity: 0.55, depthWrite: false }));
+  snowCover.rotation.x = -Math.PI / 2;
+  snowCover.position.y = 0.025;
+  const flakePos = new Float32Array(800 * 3);
+  for (let i = 0; i < 800; i++) flakePos.set([(random() - 0.5) * 50, random() * 16, (random() - 0.5) * 50], i * 3);
+  const flakeGeo = new THREE.BufferGeometry();
+  flakeGeo.setAttribute("position", new THREE.BufferAttribute(flakePos, 3));
+  const flakes = new THREE.Points(flakeGeo, new THREE.PointsMaterial({ color: "#ffffff", size: 0.12 }));
+  flakes.frustumCulled = false;
+  snow.add(snowCover, flakes);
+  snow.userData.flakes = flakes;
+  snow.visible = false;
+  scene.add(snow);
+
+  // R64: markers over what you can see from high in a tree
+  const spotMarkers = [];
+  for (let i = 0; i < 24; i++) {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 6), new THREE.MeshBasicMaterial({ color: "#7dff7a", depthTest: false, fog: false }));
+    m.rotation.x = Math.PI;   // pointing down at the thing
+    m.renderOrder = 11;
+    m.visible = false;
+    scene.add(m);
+    spotMarkers.push(m);
+  }
+
   Object.assign(view, {
-    scene, hemi, sun, sunBall, moonBall, stars, treeTops, grass, grassUniforms, herbModels, denModels, pileModel,
+    scene, hemi, sun, sunBall, moonBall, stars, treeTops, grass, grassUniforms, herbModels, denModels, pileModel: pileStack,
     playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels, kitModels,
     rain, fishModels, ripple, lightningFlash: 0, greatOak, medicineCatModels, stolenModel, raiderModels: [], leaderModels: [],
     preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
+    groundMaterials, barkMaterial: Object.values(trunkMats)[0], rockMaterial: stoneMat, hutMaterial: hutMaterial(false), waterMaterial: waterMat,
+    banks, pebbles, lilyPads, stoneModels, jumpingFish, splash, pileStack, pileModels: [], markerModels, leaves, snow, spotMarkers,
+    rogueMateModels: [], leafMats, leafColors: {}, builtStones: steppingStones.length,
   });
 }
 
@@ -1078,11 +1314,11 @@ function updateTreesAndGrass(t, centre) {
     if (Math.abs(top.position.x - centre.x) > 80 || Math.abs(top.position.z - centre.z) > 80) continue;
     const p = top.userData.phase;
     const gust = weather === "wind" ? 3 : (weather === "storm" ? 2.5 : 1);   // R30
-    top.rotation.z = Math.sin(t * 1.3 * gust + p) * 0.03 * gust;
-    top.rotation.x = Math.sin(t * 1.1 + p * 2) * 0.02;
+    top.rotation.z = Math.sin(t * 1.3 * gust + p) * 0.03 * gust * TREE_SWAY;   // R68: half the sway
+    top.rotation.x = Math.sin(t * 1.1 + p * 2) * 0.02 * TREE_SWAY;
     for (const leaves of top.children) {
       if (!leaves.userData.base) continue;
-      leaves.position.x = leaves.userData.base.x + Math.sin(t * 2 + p + leaves.userData.base.z) * 0.08;
+      leaves.position.x = leaves.userData.base.x + Math.sin(t * 2 + p + leaves.userData.base.z) * 0.08 * TREE_SWAY;
     }
   }
   // Grass (R24): the shader does the swaying and keeps the blades around the cat
@@ -1130,16 +1366,31 @@ function updateCats(t) {
   patrols.forEach((c, i) => {
     const model = view.patrolModels[i];
     if (!model) return;
+    if (c.state === "resting") {
+      // R71: a beaten cat lies resting in its camp until its medicine cat treats it
+      poseCat(model, { x: c.x, y: 0, z: c.z, heading: c.heading, size: 0.95, moving: c.moving, walk: c.walk, lying: !c.moving, hurt: true, limp: c.moving }, t);
+      model.visible = playing;
+      return;
+    }
     poseFighter(model, c, 0.95, t);
-    model.visible = playing && c.state !== "resting" && !flicker(c.hurtTimer);
+    model.visible = playing && !flicker(c.hurtTimer);
   });
 
   // Your camp cats and mentors (R16, R19)
   campCats.forEach((c, i) => {
     const model = view.campCatModels[i];
     if (!model) return;
-    poseCat(model, { x: c.x, y: 0, z: c.z, heading: c.heading, size: 0.95, moving: c.moving, walk: c.walk,
-                     lying: c.injured, hurt: c.injured }, t);
+    // R58: a mentor shows how a task is done; R63: cats groom, greet, share prey or argue
+    const demo = c.demo;
+    const social = c.social;
+    const heading = social && c.partner ? Math.atan2(c.partner.x - c.x, c.partner.z - c.z) : c.heading;
+    poseCat(model, { x: c.x, y: 0, z: c.z, heading, size: 0.95, moving: c.moving || demo === "stalk", walk: c.walk,
+                     lying: c.injured, hurt: c.injured, crouch: demo === "sniff" || demo === "stalk" || social === "argue",
+                     fighting: demo === "fight" || social === "argue", attack: demo === "swipe" && Math.sin(t * 3) > 0.6,
+                     eating: social === "share" ? 1 : 0, idle: social === "groom" ? 6 : 0 }, t);
+    if (demo === "look-up") model.userData.head.rotation.x = -0.7;
+    if (demo === "sniff") model.userData.head.rotation.x = 0.6;
+    if (social === "groom") model.userData.head.rotation.x = 0.3 + Math.sin(t * 6) * 0.2;
     model.visible = playing;
   });
 
@@ -1174,6 +1425,7 @@ function updateCritters(t) {
     const moving = c.state === "hopping" || c.state === "fleeing";
     model.visible = shown(c);
     model.position.set(c.x, moving && c.kind !== "beetle" ? Math.abs(Math.sin(c.hop)) * 0.15 : 0, c.z);
+    if (c.perch) model.position.set(c.x + c.perch.tree.r + 0.15, c.perch.y + 0.3, c.z);   // R64: on a branch
     if (moving) model.rotation.y = Math.atan2(c.dirX, c.dirZ);
     model.userData.tail.rotation.x = (c.kind === "squirrel" ? -0.4 : Math.PI / 2.4) + Math.sin(t * 4) * 0.15;
   };
@@ -1241,7 +1493,6 @@ function updateScent(t) {
 
 function updateCamp() {
   view.pileModel.visible = freshKill > 0;
-  view.pileModel.children.forEach((piece, k) => { piece.visible = k < freshKill; });
   // Herbs glow while scenting or for a medicine cat; picked herbs disappear until they regrow
   herbs.forEach((h, i) => {
     const model = view.herbModels[i];
@@ -1263,8 +1514,10 @@ function updateKitModels(t) {
     poseCat(model, {
       x: k.x, y: pounce ? Math.abs(Math.sin(t * 6 + i)) * 0.25 : 0, z: k.z, heading: k.heading, size: k.size,
       moving: k.moving, running: k.activity === "chase", walk: k.walk, airborne: pounce && Math.sin(t * 6 + i) > 0.3,
-      crouch: k.activity === "pounce" && !k.moving,
+      crouch: (k.activity === "pounce" || k.activity === "playpounce") && !k.moving,
+      idle: k.activity === "visit" && !k.moving ? 6 : 0,
     }, t);
+    if (k.activity === "visit" && !k.moving) model.userData.head.rotation.x = -0.4;   // R63: looking up at you
     // Tumbling: roll over on the spot
     if (k.activity === "tumble") model.rotation.z = Math.sin(t * 5 + i) * 1.2;
     model.visible = playing;
@@ -1341,14 +1594,133 @@ function updateRound5View(t) {
     poseFighter(view.raiderModels[i], r, 0.95, t);
     view.raiderModels[i].visible = playing;
   });
-  const showLeaders = gathering.called || (pendingChoice && pendingChoice.kind === "speech") ? gatheringLeaders : [];
+  // R70: every clan's leader is always there (by its Highrock, or at the Great Oak for a Gathering)
+  const showLeaders = leaders.filter((l) => !l.retired);
   view.leaderModels = syncCatModels(view.leaderModels, showLeaders);
   showLeaders.forEach((l, i) => {
-    poseCat(view.leaderModels[i], { x: l.x, y: 0, z: l.z, heading: l.heading, size: 1.05, idle: 6 }, t);
+    poseCat(view.leaderModels[i], { x: l.x, y: 0, z: l.z, heading: l.heading, size: 1.05, moving: l.moving, walk: l.walk, idle: l.moving ? 0 : 6 }, t);
+    view.leaderModels[i].visible = playing;
   });
   const stolen = stolenPrey && !stolenPrey.taken;
   view.stolenModel.visible = playing && !!stolen;
   if (stolen) view.stolenModel.position.set(stolenPrey.x, 0.1, stolenPrey.z);
+}
+
+// ======================================================
+// Round 6
+// ======================================================
+const LEAF_AMOUNT = { newleaf: 120, greenleaf: 80, "leaf-fall": 600, "leaf-bare": 0 };   // R68
+const LEAF_COLOR = { newleaf: "#9ad06a", greenleaf: "#5f9a3a", "leaf-fall": "#d0782a", "leaf-bare": "#8a7a5a" };
+// R69: how the trees' leaves are tinted each season
+const SEASON_TINT = { newleaf: ["#a8e070", 0.25], greenleaf: ["#2f6a2a", 0], "leaf-fall": ["#c8641e", 0.55], "leaf-bare": ["#7a6a50", 0.6] };
+
+function updateRound6View(t, cam) {
+  const s = season();
+  // R59: the water flows; a fish jumps now and then near you; a splash where you walked in
+  view.waterMaterial.map.offset.y = -t * CURRENT_SPEED / (WORLD_HALF * 2) * 60;
+  const jump = (t % 7) / 1.2;   // a jump lasts 1.2 s every 7 s
+  const water = WATERS.reduce((a, b) => (Math.abs(player.x - (a.x0 + a.x1) / 2) < Math.abs(player.x - (b.x0 + b.x1) / 2) ? a : b));
+  const nearWater = playing && Math.abs(player.x - (water.x0 + water.x1) / 2) < 25;
+  view.jumpingFish.visible = nearWater && jump < 1;
+  if (view.jumpingFish.visible) {
+    const z = player.z + 6 + Math.floor(t / 7) % 5 * 2;
+    view.jumpingFish.position.set((water.x0 + water.x1) / 2 + Math.sin(Math.floor(t / 7)) * 1.5, Math.sin(jump * Math.PI) * 0.9 - 0.05, z - jump * 1.5);
+    view.jumpingFish.rotation.set(-Math.cos(jump * Math.PI) * 0.9, Math.PI, 0);
+  }
+  view.splash.visible = playing && player.splashTimer > 0;
+  if (view.splash.visible) {
+    const grow = 1 + (0.6 - player.splashTimer) * 3;
+    view.splash.position.set(player.x, 0.07, player.z);
+    view.splash.scale.set(grow, grow, 1);
+    view.splash.material.opacity = player.splashTimer;
+  }
+  if (view.stoneModels.length !== steppingStones.length) buildScene();
+
+  // R65: the fresh-kill pile shows the prey on it
+  if (view.pileModels.length !== pileItems.length || view.pileModels.some((m, i) => m.userData.kind !== pileItems[i].kind)) {
+    view.pileModels.forEach((m) => view.pileStack.remove(m));
+    view.pileModels = pileItems.map((p, k) => {
+      const m = p.kind === "fish" ? makeFishModel() : makePreyModel(p.kind);
+      m.userData.kind = p.kind;
+      const ring = k % 6;
+      const layer = Math.floor(k / 6);
+      m.position.set(Math.sin(ring * 1.05 + layer) * (0.45 - layer * 0.12), 0.06 + layer * 0.14, Math.cos(ring * 1.05 + layer) * (0.45 - layer * 0.12));
+      m.rotation.set(0, ring * 1.05 + layer, Math.PI / 2);   // lying on their sides
+      view.pileStack.add(m);
+      return m;
+    });
+  }
+  view.pileModels.forEach((m) => { m.visible = true; });
+
+  // R67: the next marker glows brightest and pulses
+  view.markerModels.forEach((m, i) => {
+    const next = i === markersVisited;
+    const glow = next ? 1.2 + Math.sin(t * 4) * 0.3 : (i < markersVisited ? 0.15 : 0.5);
+    m.userData.glow = next ? 1.2 : (i < markersVisited ? 0.15 : 0.5);
+    m.userData.glowMat.emissiveIntensity = glow;
+    m.userData.ring.visible = next;
+    m.userData.ring.scale.setScalar(1 + (t % 1.5) * 0.5);
+    m.visible = true;
+  });
+
+  // R68: leaves drift down around the camera (R69: how many depends on the season)
+  const amount = LEAF_AMOUNT[s];
+  view.leaves.userData.amount = amount;
+  view.leaves.visible = amount > 0;
+  view.leaves.material.color.set(LEAF_COLOR[s]);
+  view.leaves.geometry.setDrawRange(0, amount);
+  if (amount > 0) {
+    const pos = view.leaves.geometry.attributes.position;
+    for (let i = 0; i < amount; i++) {
+      let y = pos.getY(i) - 0.9 / 60;
+      if (y < 0) y += 14;
+      pos.setY(i, y);
+      pos.setX(i, pos.getX(i) + Math.sin(t * 1.5 + i) * 0.01);
+    }
+    pos.needsUpdate = true;
+    view.leaves.position.set(cam.x, 0, cam.z);
+  }
+  // R69: snow in leaf-bare, and the trees change colour with the seasons
+  view.snow.visible = s === "leaf-bare";
+  if (view.snow.visible) {
+    const flakes = view.snow.userData.flakes;
+    const pos = flakes.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      let y = pos.getY(i) - 1.2 / 60;
+      if (y < 0) y += 16;
+      pos.setY(i, y);
+    }
+    pos.needsUpdate = true;
+    flakes.position.set(cam.x, 0, cam.z);
+    view.snow.children[0].position.x = 0;
+  }
+  if (view.leafSeason !== s) {
+    view.leafSeason = s;
+    const [tint, amountTint] = SEASON_TINT[s];
+    for (const place in view.leafMats) {
+      view.leafMats[place].forEach((m, i) => {
+        const base = PLACES[place].leaves[i];
+        m.color.copy(mixColors(base, tint, place === "marsh" ? amountTint * 0.3 : amountTint));   // pines stay green
+      });
+    }
+  }
+
+  // R64: from high in a tree, markers over the prey (green) and enemies (red) you can see
+  const seen = playing ? spottedFromTree() : [];
+  view.spotMarkers.forEach((m, i) => {
+    const thing = seen[i];
+    m.visible = !!thing;
+    if (!thing) return;
+    m.position.set(thing.x, 2 + Math.sin(t * 3 + i) * 0.2, thing.z);
+    m.material.color.set(PREY_KINDS[thing.kind] ? "#7dff7a" : "#ff4a3a");
+  });
+
+  // R62: the rest of a rogue pack
+  view.rogueMateModels = syncCatModels(view.rogueMateModels, rogueMates);
+  rogueMates.forEach((m, i) => {
+    poseFighter(view.rogueMateModels[i], m, 0.9, t);
+    view.rogueMateModels[i].visible = playing && !(m.hurtTimer > 0 && Math.floor(t * 20) % 2 === 0);
+  });
 }
 
 // R21: on the title screen the camera slowly circles the camp
@@ -1376,6 +1748,7 @@ function renderFrame() {
   updateWeatherView(t, cam);
   updateFishingView(t);
   updateRound5View(t);
+  updateRound6View(t, cam);
 
   // R11/R12/R25: the camera sits low and close behind the cat (inside a hut when you are)
   view.camera.position.set(cam.x, cam.y, cam.z);

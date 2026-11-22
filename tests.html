@@ -2130,15 +2130,16 @@
           return closest >= CAT_BODY - 0.02;
         });
         check("R58", "you can't walk through camp cats or kits either", () => {
-          const k = kits.find((x) => x.clan === clanName);
-          Object.assign(k, { x: CAMP.x, z: CAMP.z - 27, timer: 99, activity: "tumble" });
+          const k = kits.find((x) => x.clan === clanName); const home = k.home;
+          Object.assign(k, { x: CAMP.x, z: CAMP.z - 27, timer: 99, activity: "tumble", home: { x: CAMP.x, z: CAMP.z - 27 } });   // (so it isn't pulled back to camp)
           const m = mentorOf(); m.x = CAMP.x + 30;
           placeAt(0, -30); player.heading = 0;
           let closest = Infinity;
           keys.KeyW = true;
           for (let i = 0; i < 60; i++) { step(1 / 60); closest = Math.min(closest, dist2d(player, k)); }
           releaseAll();
-          return closest >= CAT_BODY * 0.75 - 0.02;
+          k.home = home;
+          return closest >= CAT_BODY * 0.75 - 0.02 && closest < 1.5;
         });
         check("R58", "at the patrol marker the mentor demonstrates: sniffing the marker", () => {
           const mk = BORDER_MARKERS[0]; const m = mentorOf();
