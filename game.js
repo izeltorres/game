@@ -90,18 +90,54 @@ const EYES = { Green: "#4caf50", Amber: "#f0a020", Blue: "#4aa3df", Yellow: "#e8
 const PATTERNS = ["Solid", "Tabby", "Patches", "Tuxedo", "Calico", "Spotted", "Colorpoint"];   // R21
 const WARRIOR_SUFFIXES = ["heart", "claw", "pelt", "storm", "whisker", "fang", "tail", "stripe"];
 
-// Each level: rank name, name ending, and how big the cat is
+// The three stages of a cat's life (Round 4: R42, R43, R45): rank name, name ending, size
 const STAGES = [
-  { rank: "Kit",        suffix: "kit", size: 0.55 },  // level 1: hunt a squirrel
-  { rank: "Kit",        suffix: "kit", size: 0.72 },  // level 2: go fishing (cat has grown)
-  { rank: "Apprentice", suffix: "paw", size: 0.86 },  // level 3: fight a rogue
-  { rank: null,         suffix: null,  size: 1 },     // a full clan cat: the rank is the chosen role
+  { rank: "Kit",        suffix: "kit", size: 0.5 },   // stays in camp, catches a mix of small prey
+  { rank: "Apprentice", suffix: "paw", size: 0.86 },  // does its mentor's tasks
+  { rank: null,         suffix: null,  size: 1 },     // a full clan cat: the rank is the role
 ];
 
-// Roles (R9). Warriors and deputies become leader after enough hunting and fighting.
-const ROLES = ["Warrior", "Deputy", "Medicine cat"];
-const LEADER_NEEDS = { Warrior: { hunts: 5, fights: 3 }, Deputy: { hunts: 3, fights: 2 } };
+// Kits (R42, R45): stay inside the camp and catch this mix to become an apprentice
+const KIT_NEEDS = { beetle: 5, mouse: 3 };
+const KIT_BOUNDARY = 12;           // how far from the middle of camp a kit may go
+const KIT_GROWN_SIZE = 0.75;       // a kit grows from 0.5 to this as it catches its mix
+
+// Apprentices (R44, R45): the tasks the mentor gives, in order
+const APPRENTICE_TASKS = ["patrol", "squirrel", "fish", "rogue"];
+const FISH_FOR_TASK = 3;
+// Border markers for patrols, measured from the camp like the other spots
+const BORDER_MARKER_SPOTS = [[10, -50], [50, -15], [-10, 45]];   // well away from where rogues appear
+const MARKER_RADIUS = 4;
+
+// Paths (R43): the player chooses one of these; warriors earn Deputy and then Leader (R45)
+const ROLES = ["Warrior", "Medicine cat"];
+const DEPUTY_NEEDS = { hunts: 5, fights: 3, patrols: 1 };
+const LEADER_NEEDS = { hunts: 3, fights: 2, trained: 1 };
+const LESSONS = ["hunt", "battle", "patrol"];   // training your own apprentice (R36, R39)
+const LESSON_HUNTS = 3;
+const LESSON_HITS = 3;
+const LEADER_LIVES = 9;            // R37
+const LIFE_SHIELD = 2;             // seconds nothing can hurt a leader after losing a life
 const ORDERS = { Digit1: "follow", Digit2: "hunt", Digit3: "guard" };
+
+// Kits living in camps (R31)
+const KIT_NAMES = ["Pebble", "Ember", "Sedge", "Wren"];
+const RIVAL_KITS = 2;
+
+// Weather (R30)
+const WEATHERS = ["clear", "rain", "fog", "wind", "storm"];
+const WEATHER_TIME = 240;          // seconds between weather changes
+const WEATHER_SCENT = { clear: 1, rain: 0.6, fog: 1, wind: 1.5, storm: 0.4 };
+
+// Looking up and down with the mouse (R32)
+const CAM_PITCH_MIN = -0.5;
+const CAM_PITCH_MAX = 0.8;
+const MOUSE_SPEED = 0.0025;
+
+// 3D fishing (R35)
+const FISH_COUNT = 4;
+const PAW_REACH = 0.55;            // how close a fish must be to the paw; RiverClan reaches further
+const LOW_HEALTH = 30;             // below this a cat limps (R46)
 
 // Mentors (R19): they live in your camp
 const MENTORS = [
@@ -166,20 +202,28 @@ let rogueSpawn = 0;
 let freshKill = 3;          // pieces on the fresh-kill pile (R20)
 let injuryTimer = INJURY_TIME;
 let lastMessage = "";
+const kitCatches = { beetle: 0, mouse: 0 };   // R45
+let taskIndex = 0;          // which of the mentor's tasks the apprentice is on (R44)
+let markersVisited = 0;     // border markers visited on the current patrol
+let trainee = null;         // the deputy's own apprentice (R36, R39)
+let weather = "clear";      // R30
+let weatherTimer = WEATHER_TIME;
+let boundaryWarned = -10;   // when the kit was last told to stay in camp
 
 // Places for the player's own clan (filled in by resetGame)
 const CAMP = { x: 0, z: 0 };
 const ROGUE_HOME = { x: 0, z: 0 };
 const ROGUE_SPAWNS = [];
 const FRESH_KILL = { x: 0, z: 0 };
+const BORDER_MARKERS = [];
 let dens = [];
 
 const player = {};
 const squirrel = {};
 const rogue = {};
 const fishing = {};
-const stats = { hunts: 0, fights: 0 };   // counted after choosing a role (R9)
-const ui = { map: false, pouch: false, menu: false }; // map (R15), herb pouch (R18), main menu (R26)
+const stats = { hunts: 0, fights: 0, patrols: 0, trained: 0 };   // counted toward the next promotion (R45)
+const ui = { map: false, pouch: false, menu: false, gameOver: false }; // map (R15), pouch (R18), main menu (R26, R37)
 let trees = [];
 let herbs = [];
 let prey = [];          // beetles and mice (R13)
@@ -189,6 +233,7 @@ let patrols = [];       // other clans' cats: patrols (R16) and camp cats (R29);
 let huts = [];          // every camp's huts (R25)
 let rocks = [];         // camp stones and Highrocks (R23)
 let dropped = [];       // prey dropped on the ground (R27)
+let kits = [];          // kits in every camp (R31); the deputy's apprentice is one of them
 
 // script.js fills these in so the logic can talk to the page
 const hooks = { message: null, afterUpdate: null };
@@ -249,8 +294,15 @@ function resetGame() {
   ui.map = false;
   ui.pouch = false;
   ui.menu = false;
+  ui.gameOver = false;
   dropped = [];
-  Object.assign(stats, { hunts: 0, fights: 0 });
+  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0 });
+  Object.assign(kitCatches, { beetle: 0, mouse: 0 });
+  taskIndex = 0;
+  markersVisited = 0;
+  trainee = null;
+  weather = "clear";
+  weatherTimer = WEATHER_TIME;
 
   // Places for this clan
   Object.assign(CAMP, campOf(clanName));
@@ -261,13 +313,16 @@ function resetGame() {
   huts = buildHuts();
   rocks = buildRocks();
   dens = huts.filter((h) => h.clan === clanName);
+  BORDER_MARKERS.length = 0;
+  BORDER_MARKER_SPOTS.forEach(([u, v]) => BORDER_MARKERS.push(spotFor(clanName, u, v)));
 
   Object.assign(player, {
-    x: CAMP.x, z: CAMP.z + 3, y: 0, vy: 0, heading: 0, turnVel: 0, camHeading: 0, onGround: true,
+    x: CAMP.x, z: CAMP.z + 3, y: 0, vy: 0, heading: 0, turnVel: 0, camHeading: 0, camPitch: 0, onGround: true,
     crouching: false, moving: false, running: false, scenting: false, climbing: null, walk: 0,
     hp: 100, food: 100, attackTimer: 0, attackCooldown: 0, hurtTimer: 0,
     dodgeTimer: 0, dodgeCooldown: 0, dodgeX: 0, dodgeZ: 0, recover: 0, biteCooldown: 0,
     carrying: null, dropTimer: 0, pouch: { marigold: 0, dock: 0 },
+    lives: 0, lifeShield: 0, idleTime: 0, eatTimer: 0,
   });
   // critter state: idle | hopping | fleeing | hidden | caught
   const s = spotFor(clanName, 4, 24);
@@ -276,16 +331,18 @@ function resetGame() {
   // rogue.state: waiting | fighting | fleeing | gone
   Object.assign(rogue, { x: ROGUE_HOME.x, z: ROGUE_HOME.z, hp: ROGUE_HP, heading: Math.PI, walk: 0, windup: 0,
                          cooldown: 0, hurtTimer: 0, stagger: 0, fleeTimer: 0, respawn: 0, state: "waiting" });
-  Object.assign(fishing, { active: false, marker: 0, dir: 1, zone: 0.5, catches: 0, flash: 0, flashGood: false });
+  Object.assign(fishing, { active: false, catches: 0, flash: 0, flashGood: false, fish: [] });
 
   trees = buildTrees();
   herbs = buildHerbs();
   clanmates = [];
   prey = [];
-  for (let i = 0; i < 6; i++) prey.push(makeCritter("beetle"));
-  for (let i = 0; i < 4; i++) prey.push(makeCritter("mouse"));
+  for (let i = 0; i < 6; i++) prey.push(makeCritter("beetle", prey.length));
+  for (let i = 0; i < 4; i++) prey.push(makeCritter("mouse", prey.length));
+  squirrel.slot = 0;
   campCats = buildCampCats();
   patrols = buildPatrols();
+  kits = buildKits();
 }
 
 // ======================================================
@@ -376,11 +433,12 @@ function moveToward(body, target, speed, dt) {
   const side = body.avoidSide || 1;
   const fromHut = insideHut(body);
   const targetHut = insideHut(target);
+  const doorHut = fromHut || targetHut || doorwayHut(body);   // standing in a doorway keeps that door open
   let best = null;
   for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4]) {
     const h = want + turn * side;
     const trial = { x: body.x + Math.sin(h) * stepSize, z: body.z + Math.cos(h) * stepSize };
-    pushOutOfObstacles(trial, CAT_R, fromHut || targetHut);
+    pushOutOfObstacles(trial, CAT_R, doorHut);
     const trialHut = insideHut(trial);
     if (!fromHut && trialHut && trialHut !== targetHut) continue;   // don't wander into a hut
     const progress = d - distance(trial, target);
@@ -397,19 +455,35 @@ function moveToward(body, target, speed, dt) {
   body.moving = true;
 }
 
+// A kit grows a little with every catch toward its mix (R45)
+function kitProgress() {
+  const need = KIT_NEEDS.beetle + KIT_NEEDS.mouse;
+  return (Math.min(kitCatches.beetle, KIT_NEEDS.beetle) + Math.min(kitCatches.mouse, KIT_NEEDS.mouse)) / need;
+}
+
 function catSize() {
+  if (stage === 0) return STAGES[0].size + (KIT_GROWN_SIZE - STAGES[0].size) * kitProgress();
   return STAGES[stage].size;
 }
 
 function rankName() {
-  if (stage < 3) return STAGES[stage].rank;
+  if (stage < 2) return STAGES[stage].rank;
   return role || "Apprentice";
 }
 
 function fullName() {
-  if (stage < 3) return catName + STAGES[stage].suffix;
+  if (stage < 2) return catName + STAGES[stage].suffix;
   if (role === "Leader") return catName + "star";
   return catName + warriorSuffix;
+}
+
+// The task the mentor has given the apprentice (R44), or null
+function currentTask() {
+  return stage === 1 && mentor ? APPRENTICE_TASKS[taskIndex] || null : null;
+}
+
+function mentorCat() {
+  return campCats.find((c) => c.mentorId === mentor) || null;
 }
 
 function inRiver(x) {
@@ -426,13 +500,13 @@ function eat(amount) {
 
 // Mentor and clan bonuses
 function stealthMult() {
-  return CLANS[clanName].stealth * (mentor === "hunter" ? 0.7 : 1);
+  return CLANS[clanName].stealth * (mentor === "hunter" ? 0.7 : 1) * (weather === "fog" ? 0.6 : 1);   // fog: R30
 }
 function damageMult() {
   return CLANS[clanName].damage * (mentor === "fighter" ? 1.25 : 1);
 }
 function scentRange() {
-  return mentor === "hunter" ? 45 : 30;
+  return Math.round((mentor === "hunter" ? 45 : 30) * WEATHER_SCENT[weather]);   // weather: R30
 }
 function pouchSize() {
   return mentor === "herbs" ? 8 : 5;
@@ -486,6 +560,26 @@ function buildCampCats() {
     clan: clanName, hp: 100, injured: false, heading: 0, walk: 0, moving: false, timer: i,
     target: null, x: CAMP.x + Math.sin(i * 1.6) * 4, z: CAMP.z + Math.cos(i * 1.6) * 4,
   }));
+}
+
+// R31: 4 kits play in your camp, and each other camp has 2 kits
+function buildKits() {
+  const list = [];
+  const furs = [FURS.Grey, FURS.Ginger, FURS.Brown, FURS.Cream];
+  for (const clan in CLANS) {
+    const camp = campOf(clan);
+    const count = clan === clanName ? KIT_NAMES.length : RIVAL_KITS;
+    for (let i = 0; i < count; i++) {
+      const a = i * 1.9 + 0.5;
+      list.push({
+        clan, baseName: KIT_NAMES[i], name: KIT_NAMES[i] + "kit", size: 0.5, lesson: null,
+        x: camp.x + Math.sin(a) * 2.5, z: camp.z + Math.cos(a) * 2.5, heading: a, walk: 0, moving: false,
+        activity: "wander", timer: i * 0.7, target: null, home: camp,
+        look: { fur: furs[(i + clan.length) % furs.length], eyes: EYES.Green, pattern: PATTERNS[(i + clan.length) % 4] },
+      });
+    }
+  }
+  return list;
 }
 
 const PATROL_FURS = {
@@ -561,6 +655,12 @@ function buildRocks() {
   return list;
 }
 
+// The hut whose doorway something is standing in, if any
+function doorwayHut(body) {
+  return huts.find((h) => Math.abs(distance(body, h) - h.R) < CAT_R + HUT_WALL + 0.2 &&
+                          Math.abs(wrapAngle(Math.atan2(body.x - h.x, body.z - h.z) - h.door)) < HUT_DOOR) || null;
+}
+
 // The hut something is inside, if any
 function insideHut(body) {
   return huts.find((h) => distance(body, h) < h.R - 0.05) || null;
@@ -629,21 +729,25 @@ function trunkInFront() {
 function update(dt) {
   time += dt;
   if (playing && ui.menu) {
-    if (pressed.Escape) ui.menu = false;   // the main menu pauses the game (R26)
+    // The main menu pauses the game (R26); after a game over it can't be closed (R37)
+    if (pressed.Escape && !ui.gameOver) ui.menu = false;
   } else if (playing && !choosingRole && !choosingMentor) {
     updateMenusKeys();
     updateDay(dt);
+    updateWeather(dt);
     if (fishing.active) updateFishing(dt);
     else updatePlayer(dt);
+    updateMarkers();
     updateFood(dt);
     updateCritter(squirrel, dt);
     prey.forEach((p) => updateCritter(p, dt));
-    if (stage >= 2 || rogue.state === "fighting") updateRogue(dt);
+    if (rogueActive() || rogue.state === "fighting") updateRogue(dt);
     patrols.forEach((c) => updatePatrol(c, dt));
     updateCampCats(dt);
+    updateKits(dt);
     updateHerbs(dt);
     updateDropped(dt);
-    if (stage === 3) updateClanmates(dt);
+    if (stage === 2) updateClanmates(dt);
     updateCamera(dt);
   }
   if (hooks.afterUpdate) hooks.afterUpdate();
@@ -669,8 +773,14 @@ function updatePlayer(dt) {
   player.dodgeCooldown = Math.max(0, player.dodgeCooldown - dt);
   player.biteCooldown = Math.max(0, player.biteCooldown - dt);
   player.dropTimer = Math.max(0, player.dropTimer - dt);
+  player.eatTimer = Math.max(0, player.eatTimer - dt);
+  player.lifeShield = Math.max(0, player.lifeShield - dt);
+  // R46: how long the cat has stood still (for sitting and lying down)
+  const busy = isDown("KeyW", "ArrowUp", "KeyS", "ArrowDown", "KeyA", "ArrowLeft", "KeyD", "ArrowRight", "Space") ||
+               Object.keys(pressed).length > 0 || !player.onGround;
+  player.idleTime = busy ? 0 : player.idleTime + dt;
 
-  if (stage === 3 && role === "Leader" && !ui.pouch) {
+  if (stage === 2 && role === "Leader" && !ui.pouch) {
     for (const code in ORDERS) if (pressed[code]) giveOrder(ORDERS[code]);
   }
 
@@ -688,6 +798,7 @@ function updatePlayer(dt) {
     player.z += player.dodgeZ * DODGE_SPEED * dt;
     pushOutOfObstacles(player, CAT_R);
     keepInWorld(player);
+    keepKitInCamp();
     return;
   }
 
@@ -740,6 +851,7 @@ function updatePlayer(dt) {
   player.z += Math.cos(player.heading) * stepSize;
   keepInWorld(player);
   pushOutOfObstacles(player, CAT_R);
+  keepKitInCamp();
 
   // R8: moving uses food, running twice as much per distance
   const moved = Math.hypot(player.x - oldX, player.z - oldZ);
@@ -758,6 +870,26 @@ function updatePlayer(dt) {
   else if (pressed.KeyR) tryBite();
   else if (pressed.KeyG) dropPrey();
   else if (pressed.KeyE) doAction();
+}
+
+// R42: a kit can't go past the camp boundary
+function keepKitInCamp() {
+  if (stage !== 0) return;
+  const d = distance(player, CAMP);
+  if (d <= KIT_BOUNDARY) return;
+  player.x = CAMP.x + (player.x - CAMP.x) * (KIT_BOUNDARY / d);
+  player.z = CAMP.z + (player.z - CAMP.z) * (KIT_BOUNDARY / d);
+  if (time - boundaryWarned > 2) {
+    boundaryWarned = time;
+    say("Kits must stay in camp! Hunt the beetles and mice in here.", 2);
+  }
+}
+
+// R32: moving the mouse turns the cat (left/right) and tilts the camera (up/down)
+function lookWithMouse(dx, dy) {
+  player.heading -= dx * MOUSE_SPEED;
+  player.camHeading -= dx * MOUSE_SPEED;   // the camera follows the mouse at once
+  player.camPitch = clamp(player.camPitch - dy * MOUSE_SPEED, CAM_PITCH_MIN, CAM_PITCH_MAX);
 }
 
 // R12: turning speeds up and slows down smoothly instead of starting and stopping at once
@@ -823,8 +955,29 @@ function updateClimbing(dt) {
 function updateFood(dt) {
   if (player.food <= 0) {
     player.hp -= STARVE_DAMAGE * dt;
-    if (player.hp <= 0) faint("You are starving and faint... Your clanmates carry you back to camp. Eat something!");
+    if (player.hp <= 0) knockedOut("You are starving and faint... Your clanmates carry you back to camp. Eat something!");
   }
+}
+
+// Health has reached 0: a leader loses one of its nine lives (R37), anyone else faints
+function knockedOut(faintText) {
+  if (role !== "Leader") {
+    faint(faintText);
+    return;
+  }
+  player.lives--;
+  if (player.lives <= 0) {
+    // R37: the ninth life is gone - game over
+    player.hp = 0;
+    ui.menu = true;
+    ui.gameOver = true;
+    say("You have lost all nine lives. Your time as leader is over.", 6);
+    return;
+  }
+  player.hp = 100;
+  player.lifeShield = LIFE_SHIELD;
+  player.hurtTimer = 0;
+  say(`You lose a life! StarClan sends you back. ${player.lives} ${player.lives === 1 ? "life" : "lives"} left.`, 3);
 }
 
 function faint(text) {
@@ -836,7 +989,7 @@ function faint(text) {
   snapCamera();
   fishing.active = false;
   if (rogue.state === "fighting") {
-    const home = stage === 2 ? ROGUE_HOME : ROGUE_SPAWNS[rogueSpawn % ROGUE_SPAWNS.length];
+    const home = stage === 1 ? ROGUE_HOME : ROGUE_SPAWNS[rogueSpawn % ROGUE_SPAWNS.length];
     Object.assign(rogue, { x: home.x, z: home.z, hp: ROGUE_HP, windup: 0, cooldown: 0, stagger: 0, state: "waiting" });
   }
   patrols.forEach((c) => { if (c.state === "fighting") c.state = "patrol"; });
@@ -845,10 +998,11 @@ function faint(text) {
 // E does whatever fits where the cat is: fight, use the camp, pick herbs, catch prey or fish
 function doAction() {
   if (enemyInFront(2.2, 0.35)) trySwipe();
+  else if (trySparring()) return;
   else if (tryInteract()) return;
   else if (preyInReach()) catchPrey(preyInReach());
   else if (stage >= 1 && nearRiver(player.x)) tryFishing();
-  else if (stage === 1) tryFishing();          // tells you where the river is
+  else if (currentTask() === "fish") say("Find the river or the stream in your territory first.", 1.5);
   else if (stage === 0) pounceMiss();
   else trySwipe();
 }
@@ -856,10 +1010,29 @@ function doAction() {
 // ======================================================
 // Hunting (R4, R13): the squirrel, beetles and mice
 // ======================================================
-function makeCritter(kind) {
-  const c = { kind, state: "idle", timer: Math.random() * 2, dirX: 0, dirZ: 1, hop: 0, respawn: 0, trail: [], trailTimer: 0 };
-  Object.assign(c, randomHomeSpot());
+// slot: a number per critter, used by the weather to decide who comes out in the rain (R30)
+function makeCritter(kind, slot) {
+  const c = { kind, slot, state: "idle", timer: Math.random() * 2, dirX: 0, dirZ: 1, hop: 0, respawn: 0, trail: [], trailTimer: 0 };
+  Object.assign(c, preySpot());
   return c;
+}
+
+// Kits hunt inside the camp (R42); everyone else hunts out in the territory
+function preySpot() {
+  return stage === 0 ? campPreySpot() : randomHomeSpot();
+}
+
+// Somewhere in the open part of the camp, away from huts, rocks and the fresh-kill pile
+function campPreySpot() {
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 2 + Math.random() * (KIT_BOUNDARY - 3);
+    const s = { x: CAMP.x + Math.sin(a) * r, z: CAMP.z + Math.cos(a) * r };
+    if (insideHut(s) || distance(s, FRESH_KILL) < 2) continue;
+    pushOutOfObstacles(s, 0.3, null);
+    if (distance(s, CAMP) <= KIT_BOUNDARY - 0.5) return s;
+  }
+  return { x: CAMP.x + 1, z: CAMP.z - 2 };
 }
 
 // Somewhere in your territory, away from camp and water
@@ -875,8 +1048,16 @@ function randomHomeSpot() {
   return spot;
 }
 
-// Keep prey in your territory and out of the water
+// Keep prey where it belongs: in the camp for kits (R42), otherwise in your territory and out of the water
 function keepCritterHome(c) {
+  if (stage === 0 && c !== squirrel) {
+    const d = distance(c, CAMP);
+    if (d > KIT_BOUNDARY - 0.5) {
+      c.x = CAMP.x + (c.x - CAMP.x) * ((KIT_BOUNDARY - 0.5) / d);
+      c.z = CAMP.z + (c.z - CAMP.z) * ((KIT_BOUNDARY - 0.5) / d);
+    }
+    return;
+  }
   keepInTerritory(c, clanName);
   for (const w of WATERS) {
     if (c.x > w.x0 - 1 && c.x < w.x1 + 1) c.x = c.x < (w.x0 + w.x1) / 2 ? w.x0 - 1 : w.x1 + 1;
@@ -889,6 +1070,15 @@ function critterVisible(c) {
 
 function allCritters() {
   return [squirrel, ...prey];
+}
+
+// R30: rain keeps half the prey hidden and a thunderstorm keeps all of it hidden.
+// Squirrels never come into the camp for kits (R42).
+function preyAllowed(c) {
+  if (c === squirrel && stage === 0) return false;
+  if (weather === "storm") return false;
+  if (weather === "rain") return (c.slot || 0) % 2 === 0;
+  return true;
 }
 
 // The nearest prey in front of the cat that it can reach
@@ -909,8 +1099,7 @@ function preyInReach() {
 function catchPrey(c) {
   player.attackTimer = 0.3;
   const name = PREY_KINDS[c.kind].name;
-  const firstSquirrel = c === squirrel && stage === 0;
-  c.state = firstSquirrel ? "caught" : "hidden";
+  c.state = "hidden";
   c.respawn = c === squirrel ? 4 : PREY_RESPAWN;
 
   // Eat it, or carry it to the fresh-kill pile if you are full (beetles are always eaten)
@@ -920,22 +1109,33 @@ function catchPrey(c) {
     carried = true;
   } else {
     eat(PREY_FOOD[c.kind]);
+    player.eatTimer = 1;   // R46: eating animation
   }
 
-  if (firstSquirrel) {
-    advanceStage();
-    return;
-  }
-  if (stage === 3 && role && c.kind !== "beetle") {
+  if (stage === 0) {
+    kitCaught(c.kind);
+  } else if (c === squirrel && currentTask() === "squirrel") {
+    finishTask("You caught the squirrel! Well stalked.");
+  } else if (stage === 2 && role && c.kind !== "beetle") {
     stats.hunts++;
     say(`You caught a ${name}! (prey caught: ${stats.hunts})`, 2);
-    checkLeader();
+    checkPromotion();
   } else {
     say(carried ? `You carry the ${name} in your mouth. Take it to the fresh-kill pile in camp.` : `You caught a ${name}!`, 2);
   }
 }
 
-// Missed pounce as a kit: leap forward a little (and maybe scare the squirrel)
+// R45: a kit's catches count toward its mix of 5 beetles and 3 mice
+function kitCaught(kind) {
+  if (kitCatches[kind] !== undefined && kitCatches[kind] < KIT_NEEDS[kind]) kitCatches[kind]++;
+  if (kitCatches.beetle >= KIT_NEEDS.beetle && kitCatches.mouse >= KIT_NEEDS.mouse) {
+    becomeApprentice();
+  } else {
+    say(`You caught a ${kind}! Beetles ${kitCatches.beetle}/${KIT_NEEDS.beetle}, mice ${kitCatches.mouse}/${KIT_NEEDS.mouse}.`, 2);
+  }
+}
+
+// Missed pounce as a kit: leap forward a little
 function pounceMiss() {
   player.attackTimer = 0.3;
   if (player.onGround) {
@@ -943,8 +1143,8 @@ function pounceMiss() {
     player.onGround = false;
     player.x += Math.sin(player.heading) * 0.5;
     player.z += Math.cos(player.heading) * 0.5;
+    keepKitInCamp();
   }
-  if (critterVisible(squirrel) && distance(player, squirrel) < 6) scareCritter(squirrel);
 }
 
 function scareCritter(c) {
@@ -954,7 +1154,7 @@ function scareCritter(c) {
   const d = Math.hypot(dx, dz) || 1;
   c.dirX = dx / d;
   c.dirZ = dz / d;
-  if (c === squirrel && stage === 0) say("The squirrel heard you! Hold Shift to stalk slowly.", 2);
+  if (c === squirrel && currentTask() === "squirrel") say("The squirrel heard you! Hold Shift to stalk slowly.", 2);
 }
 
 function respawnCritter(c) {
@@ -965,9 +1165,9 @@ function respawnCritter(c) {
     c.x = player.x + Math.sin(angle) * d;
     c.z = player.z + Math.cos(angle) * d;
     keepCritterHome(c);
-    pushOutOfObstacles(c, 0.3);
+    pushOutOfObstacles(c, 0.3, null);
   } else {
-    Object.assign(c, randomHomeSpot());
+    Object.assign(c, preySpot());
   }
   c.state = "idle";
   c.timer = 1;
@@ -989,16 +1189,20 @@ function updateCritter(c, dt) {
   const kind = PREY_KINDS[c.kind];
 
   if (c.state === "caught") {
-    // The kit task's squirrel comes back once the task is done (R13)
-    if (stage > 0) {
-      c.state = "hidden";
-      c.respawn = 4;
-    }
+    c.state = "hidden";
+    c.respawn = 4;
     return;
   }
   if (c.state === "hidden") {
+    if (!preyAllowed(c)) return;   // stays hidden while the weather (or the camp) keeps it away
     c.respawn -= dt;
     if (c.respawn <= 0) respawnCritter(c);
+    return;
+  }
+  if (!preyAllowed(c)) {
+    // Weather sends it into hiding (R30)
+    c.state = "hidden";
+    c.respawn = 2;
     return;
   }
   recordTrail(c, dt);
@@ -1006,8 +1210,10 @@ function updateCritter(c, dt) {
   if (c.state === "fleeing") {
     c.x += c.dirX * kind.flee * dt;
     c.z += c.dirZ * kind.flee * dt;
+    keepCritterHome(c);
     c.hop += dt * 14;
-    if (distance(c, player) > kind.hideDist || territoryAt(c.x, c.z) !== clanName) {
+    if (distance(c, player) > kind.hideDist || territoryAt(c.x, c.z) !== clanName ||
+        (stage === 0 && distance(c, CAMP) >= KIT_BOUNDARY - 0.6)) {
       c.state = "hidden";
       c.respawn = kind.hideTime;
     }
@@ -1064,30 +1270,46 @@ function scentHint() {
 }
 
 // ======================================================
-// Fishing (level 2, and more fish later)
+// Fishing in 3D (R35): crouch at the bank and swipe when a fish swims under your paw
 // ======================================================
+// The water strip next to the cat
+function waterNear(x) {
+  return WATERS.reduce((best, w) => (Math.abs(x - (w.x0 + w.x1) / 2) < Math.abs(x - (best.x0 + best.x1) / 2) ? w : best));
+}
+
+// Where the cat's paw reaches into the water
+function pawSpot() {
+  return { x: player.x + Math.sin(player.heading) * 1.4, z: player.z + Math.cos(player.heading) * 1.4 };
+}
+
+// How close a fish must be to the paw; RiverClan reaches further (R6)
+function pawReach(clan) {
+  return PAW_REACH * CLANS[clan || clanName].fishZone;
+}
+
 function tryFishing() {
   if (!nearRiver(player.x)) {
     say("Find the river or the stream in your territory first.", 1.5);
     return;
   }
-  Object.assign(fishing, { active: true, marker: 0, dir: 1, catches: 0, flash: 0 });
-  newFishZone();
+  const w = waterNear(player.x);
+  // Face the water
+  player.heading = player.x < (w.x0 + w.x1) / 2 ? Math.PI / 2 : -Math.PI / 2;
+  snapCamera();
+  const paw = pawSpot();
+  fishing.fish = [];
+  for (let i = 0; i < FISH_COUNT; i++) {
+    fishing.fish.push({ x: w.x0 + 0.4 + Math.random() * (w.x1 - w.x0 - 0.8), z: paw.z + (Math.random() - 0.5) * 8,
+                        heading: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 0.5, dart: 0, turn: 0 });
+  }
+  Object.assign(fishing, { active: true, catches: 0, flash: 0, flashGood: false, water: w });
   player.moving = false;
   player.running = false;
   player.scenting = false;
   player.turnVel = 0;
   player.crouching = true;
-  say(stage === 1 ? "Press E when the fish is in the gold zone! Catch 3." : "Press E when the fish is in the gold zone!", 2);
-}
-
-function fishZoneWidth() {
-  return 0.12 * CLANS[clanName].fishZone;
-}
-
-function newFishZone() {
-  const half = fishZoneWidth() / 2;
-  fishing.zone = half + Math.random() * (1 - 2 * half);
+  const goal = currentTask() === "fish" ? ` Catch ${FISH_FOR_TASK}.` : "";
+  say(`Watch the water and press E when a fish swims under your paw!${goal}`, 2.5);
 }
 
 function stopFishing() {
@@ -1095,41 +1317,78 @@ function stopFishing() {
   player.crouching = false;
 }
 
+// Fish swim about in the water near the cat, and dart away after a splash
+function updateFish(dt) {
+  const w = fishing.water;
+  const paw = pawSpot();
+  for (const f of fishing.fish) {
+    f.dart = Math.max(0, f.dart - dt);
+    f.turn -= dt;
+    if (f.turn <= 0) {
+      f.heading += (Math.random() - 0.5) * 2;
+      f.turn = 0.8 + Math.random() * 1.5;
+    }
+    const speed = f.dart > 0 ? 3 : f.speed;
+    f.x += Math.sin(f.heading) * speed * dt;
+    f.z += Math.cos(f.heading) * speed * dt;
+    // Stay in the water, and within a few units of the cat
+    if (f.x < w.x0 + 0.3 || f.x > w.x1 - 0.3) { f.x = clamp(f.x, w.x0 + 0.3, w.x1 - 0.3); f.heading = -f.heading; }
+    if (Math.abs(f.z - paw.z) > 5) { f.z = paw.z + Math.sign(f.z - paw.z) * 5; f.heading = Math.PI - f.heading; }
+  }
+}
+
 function updateFishing(dt) {
   if (pressed.Escape) {
     stopFishing();
     return;
   }
-  fishing.marker += fishing.dir * dt * 0.9;
-  if (fishing.marker > 1) { fishing.marker = 1; fishing.dir = -1; }
-  if (fishing.marker < 0) { fishing.marker = 0; fishing.dir = 1; }
   fishing.flash = Math.max(0, fishing.flash - dt);
+  if (pressed.KeyE) swipeAtFish();
+  if (fishing.active) updateFish(dt);
+}
 
-  if (pressed.KeyE) {
-    fishing.flash = 0.4;
-    fishing.flashGood = Math.abs(fishing.marker - fishing.zone) < fishZoneWidth() / 2;
-    if (!fishing.flashGood) return;
-    fishing.catches++;
-    if (player.food >= 100 && !player.carrying) player.carrying = "fish";
-    else eat(PREY_FOOD.fish);
-    if (stage === 1) {
-      if (fishing.catches >= 3) {
-        stopFishing();
-        advanceStage();
-      } else {
-        newFishZone();
-      }
-    } else {
-      // Each fish is one more piece of prey
-      stopFishing();
-      if (stage === 3 && role) {
-        stats.hunts++;
-        say(`You caught a fish! (prey caught: ${stats.hunts})`, 2);
-        checkLeader();
-      } else {
-        say("You caught a fish!", 2);
+function swipeAtFish() {
+  const paw = pawSpot();
+  fishing.flash = 0.4;
+  const fish = fishing.fish.find((f) => distance(f, paw) < pawReach());
+  fishing.flashGood = !!fish;
+  if (!fish) {
+    // Splash! Nearby fish dart away from the paw
+    for (const f of fishing.fish) {
+      if (distance(f, paw) < 2.5) {
+        f.dart = 1;
+        f.heading = Math.atan2(f.x - paw.x, f.z - paw.z);
       }
     }
+    return;
+  }
+  fishing.catches++;
+  // The caught fish is replaced by a new one further along the water
+  fish.z = paw.z + (Math.random() < 0.5 ? -4 : 4);
+  fish.dart = 0;
+  if (player.food >= 100 && !player.carrying) {
+    player.carrying = "fish";
+  } else {
+    eat(PREY_FOOD.fish);
+    player.eatTimer = 1;
+  }
+  if (currentTask() === "fish") {
+    if (fishing.catches >= FISH_FOR_TASK) {
+      stopFishing();
+      finishTask("Three fish! You'll make a fine hunter.");
+    } else {
+      say(`You caught a fish! (${fishing.catches}/${FISH_FOR_TASK})`, 1.5);
+    }
+    return;
+  }
+  // Each fish is one more piece of prey
+  stopFishing();
+  if (stage === 2 && role) {
+    stats.hunts++;
+    say(`You caught a fish! (prey caught: ${stats.hunts})`, 2);
+    checkPromotion();
+  } else {
+    say("You caught a fish!", 2);
   }
 }
 
@@ -1163,10 +1422,10 @@ function defeatEnemy(e) {
   }
   e.state = "fleeing";
   e.fleeTimer = 3;
-  if (stage === 3 && role) {
+  if (stage === 2 && role) {
     stats.fights++;
     say(`The ${e.clan} cat runs home! (fights won: ${stats.fights})`, 2.5);
-    checkLeader();
+    checkPromotion();
   } else {
     say(`The ${e.clan} cat runs home!`, 2);
   }
@@ -1204,7 +1463,7 @@ function tryDodge() {
 
 // Pounce attack (F): leap onto the enemy; big hit and a stagger, but you need a moment to get up
 function tryPounceAttack() {
-  if (stage < 2) {
+  if (stage < 1) {
     say("Kits are too small to pounce-attack. Swipe (E) and dodge (C)!", 2);
     return;
   }
@@ -1226,7 +1485,7 @@ function tryPounceAttack() {
 
 // Bite (R): stronger than a swipe, double damage on a staggered enemy
 function canBite() {
-  return (stage === 3 && role !== null) || (stage === 2 && mentor === "fighter");
+  return (stage === 2 && role !== null) || (stage === 1 && mentor === "fighter");
 }
 
 function tryBite() {
@@ -1266,12 +1525,12 @@ function fightStep(e, dt) {
 function beatRogue() {
   rogue.state = "fleeing";
   rogue.fleeTimer = 3;
-  if (stage === 2) {
-    advanceStage();
-  } else {
+  if (currentTask() === "rogue") {
+    finishTask("The rogue runs for its life! You fought bravely.");
+  } else if (stage === 2 && role) {
     stats.fights++;
     say(`The rogue runs away! (fights won: ${stats.fights})`, 2.5);
-    checkLeader();
+    checkPromotion();
   }
 }
 
@@ -1281,7 +1540,7 @@ function updateRogue(dt) {
   r.stagger = Math.max(0, r.stagger - dt);
 
   if (r.state === "gone") {
-    if (stage < 3) return;
+    if (stage < 2) return;
     // R9: a new rogue comes some time after the last one ran away
     r.respawn -= dt;
     if (r.respawn <= 0) {
@@ -1340,8 +1599,8 @@ function updatePatrol(c, dt) {
 
   const playerOnTheirLand = territoryAt(player.x, player.z) === c.clan;
   if (c.state === "patrol") {
-    if (c.mode === "camp") {
-      // R29: camp cats wander around their camp, and defend it
+    if (c.mode === "camp" || weather === "storm") {
+      // R29: camp cats wander around their camp, and defend it (R30: in a storm the patrols stay home too)
       c.timer -= dt;
       if (c.timer <= 0 || !c.target) {
         c.target = campYardSpot(c.home);
@@ -1369,31 +1628,103 @@ function updatePatrol(c, dt) {
 }
 
 function hurtPlayer(amount, from) {
-  if (player.dodgeTimer > 0) return;   // dodged (R17)
+  if (player.dodgeTimer > 0 || player.lifeShield > 0) return;   // dodged (R17), or a leader just lost a life (R37)
   player.hp -= amount;
   player.hurtTimer = 0.3;
   player.x += Math.sin(from.heading) * 1;
   player.z += Math.cos(from.heading) * 1;
   pushOutOfObstacles(player, CAT_R);
-  if (player.hp <= 0) faint("You were beaten... You wake up back at camp. Rest, then try again.");
+  if (player.hp <= 0) knockedOut("You were beaten... You wake up back at camp. Rest, then try again.");
 }
 
 // ======================================================
 // Levelling up, mentors and roles (R9, R19)
 // ======================================================
-function advanceStage() {
-  stage++;
+// R45: the kit has caught its mix and becomes an apprentice (R41: -paw), then chooses a mentor
+function becomeApprentice() {
+  stage = 1;
   player.hp = 100;
-  if (stage === 1) {
-    say(`You caught the squirrel! ${fullName()} is growing bigger.`, 3);
-  } else if (stage === 2) {
-    say(`Great fishing! You are now ${fullName()}, an apprentice of ${clanName}. Choose a mentor.`, 3.5);
-    choosingMentor = true;   // script.js shows the mentor buttons
-    clearKeys();
-  } else if (stage === 3) {
-    choosingRole = true;     // script.js shows the role buttons
-    clearKeys();
+  taskIndex = 0;
+  markersVisited = 0;
+  say(`You are now ${fullName()}, an apprentice of ${clanName}! Choose a mentor.`, 3.5);
+  choosingMentor = true;   // script.js shows the mentor buttons
+  clearKeys();
+  // Prey goes back out into the territory, and squirrels come out for apprentices
+  prey.forEach((p) => { p.state = "hidden"; p.respawn = 1 + Math.random() * 3; });
+  squirrel.state = "hidden";
+  squirrel.respawn = 3;
+}
+
+// What the mentor says when giving each task (R44)
+const TASK_TEXT = {
+  patrol: "We'll walk the border. Visit the 3 border markers in order. Follow me!",
+  squirrel: "Now show me how you hunt. Stalk a squirrel (hold Shift) and pounce with E.",
+  fish: "Come to the water. Catch 3 fish: press E when one swims under your paw.",
+  rogue: "A rogue is on our territory. Chase it off! E swipe, C dodge, F pounce, R bite.",
+};
+
+// R44: the mentor announces the next task
+function giveTask() {
+  const task = currentTask();
+  if (task) say(`${mentorName()}: ${TASK_TEXT[task]}`, 4);
+}
+
+// R45: one of the mentor's tasks is done; move on to the next, or end the apprenticeship
+function finishTask(text) {
+  taskIndex++;
+  markersVisited = 0;
+  if (taskIndex < APPRENTICE_TASKS.length) {
+    say(`${mentorName()}: ${text} ${TASK_TEXT[APPRENTICE_TASKS[taskIndex]]}`, 4.5);
+    if (APPRENTICE_TASKS[taskIndex] === "squirrel") {
+      squirrel.state = "hidden";
+      squirrel.respawn = 1;
+    }
+    return;
   }
+  // Apprenticeship finished: choose a path (R43)
+  stage = 2;
+  player.hp = 100;
+  say(`${mentorName()}: ${text} Your apprenticeship is over. Choose your path.`, 4);
+  choosingRole = true;     // script.js shows the role buttons
+  clearKeys();
+}
+
+// The place the current task happens, for the mentor to lead the way to (R44)
+function taskSpot() {
+  const task = currentTask();
+  if (task === "patrol") return BORDER_MARKERS[markersVisited];
+  if (task === "squirrel") return critterVisible(squirrel) ? squirrel : spotFor(clanName, 20, 25);
+  if (task === "fish") return { x: CAMP.x > 0 ? RIVER_X0 - 1 : STREAM_X0 - 1, z: CAMP.z };
+  if (task === "rogue") return ROGUE_HOME;
+  return null;
+}
+
+// The rogue only shows up for the apprentice's rogue task, and for full clan cats (R44)
+function rogueActive() {
+  return stage === 2 || currentTask() === "rogue";
+}
+
+// Border markers (R45): visited in order by an apprentice (its first task), by a warrior (to become
+// deputy), and by a deputy with its own apprentice (the last lesson)
+function updateMarkers() {
+  const patrolling = currentTask() === "patrol" || (stage === 2 && role !== "Medicine cat" && role !== "Leader");
+  if (!patrolling) return;
+  const next = BORDER_MARKERS[markersVisited];
+  if (!next || distance(player, next) > MARKER_RADIUS) return;
+  markersVisited++;
+  if (markersVisited < BORDER_MARKERS.length) {
+    say(`Border marker ${markersVisited} of ${BORDER_MARKERS.length}.`, 1.5);
+    return;
+  }
+  markersVisited = 0;
+  if (currentTask() === "patrol") {
+    finishTask("Good, now you know our borders.");
+    return;
+  }
+  stats.patrols++;
+  if (trainee && trainee.lesson === "patrol") finishTraining();
+  else say("You finished a border patrol.", 2);
+  checkPromotion();
 }
 
 function clearKeys() {
@@ -1404,10 +1735,11 @@ function clearKeys() {
 
 function chooseMentor(id) {
   const m = MENTORS.find((x) => x.id === id);
-  if (!m || stage !== 2 || mentor !== null) return;
+  if (!m || stage !== 1 || mentor !== null) return;
   mentor = id;
   choosingMentor = false;
-  say(`${m.name} will be your mentor. ${m.teaches}`, 4);
+  taskIndex = 0;
+  giveTask();   // R44: the mentor gives the first task straight away
 }
 
 function mentorName() {
@@ -1415,26 +1747,54 @@ function mentorName() {
   return m ? m.name : null;
 }
 
+// R43: at the end of the apprenticeship, warrior or medicine cat. R40: the leader gives a warrior name.
 function chooseRole(choice) {
-  if (stage !== 3 || role !== null || !ROLES.includes(choice)) return;
+  if (stage !== 2 || role !== null || !ROLES.includes(choice)) return;
   role = choice;
   choosingRole = false;
   warriorSuffix = WARRIOR_SUFFIXES[Math.floor(Math.random() * WARRIOR_SUFFIXES.length)];
-  Object.assign(stats, { hunts: 0, fights: 0 });
+  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0 });
+  markersVisited = 0;
+  const ceremony = `Your clan leader calls the clan together: "From this day on you will be known as ${fullName()}."`;
   if (role === "Medicine cat") {
-    say(`You are now ${fullName()}, medicine cat of ${clanName}. Keep herbs in your pouch (H) and heal hurt clanmates with E.`, 5);
+    say(`${ceremony} You are ${clanName}'s medicine cat. Keep herbs in your pouch (H) and heal hurt clanmates with E.`, 6);
   } else {
-    const need = LEADER_NEEDS[role];
-    say(`You are now ${fullName()}, ${role.toLowerCase()} of ${clanName}! ` +
-        `Catch ${need.hunts} prey and win ${need.fights} fights to become leader.`, 5);
+    say(`${ceremony} To become deputy: catch ${DEPUTY_NEEDS.hunts} prey, win ${DEPUTY_NEEDS.fights} fights ` +
+        `and lead a border patrol.`, 6);
   }
 }
 
-function checkLeader() {
-  const need = LEADER_NEEDS[role];
-  if (!need || stats.hunts < need.hunts || stats.fights < need.fights) return;
-  role = "Leader";
-  // Three clanmates join the new leader
+// R45: warriors become deputy, deputies become leader, when they have done enough
+function checkPromotion() {
+  if (role === "Warrior") {
+    const need = DEPUTY_NEEDS;
+    if (stats.hunts >= need.hunts && stats.fights >= need.fights && stats.patrols >= need.patrols) promote("Deputy");
+  } else if (role === "Deputy") {
+    const need = LEADER_NEEDS;
+    if (stats.hunts >= need.hunts && stats.fights >= need.fights && stats.trained >= need.trained) promote("Leader");
+  }
+}
+
+function promote(newRole) {
+  role = newRole;
+  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0 });
+  markersVisited = 0;
+  if (newRole === "Deputy") {
+    // R36, R39: one of the camp's kits becomes the new deputy's apprentice
+    trainee = kits.find((k) => k.clan === clanName && k.lesson === null) || null;
+    if (trainee) {
+      trainee.name = trainee.baseName + "paw";
+      trainee.size = 0.8;
+      trainee.lesson = "hunt";
+      trainee.lessonCount = 0;
+    }
+    say(`You are now deputy of ${clanName}! ${trainee ? trainee.name + " is your apprentice. " : ""}` +
+        `To become leader: catch ${LEADER_NEEDS.hunts} prey, win ${LEADER_NEEDS.fights} fights and train your apprentice. ` +
+        `First lesson: take it hunting.`, 6);
+    return;
+  }
+  // Leader (R37: nine lives; R9: three clanmates to give orders to)
+  player.lives = LEADER_LIVES;
   const furs = [FURS.Grey, FURS.Brown, FURS.Cream];
   clanmates = furs.map((fur, i) => ({
     x: player.x + (i - 1) * 2, z: player.z - 2, heading: player.heading, walk: 0, timer: 0,
@@ -1443,6 +1803,131 @@ function checkLeader() {
   giveOrder("follow");
   say(`StarClan gives you nine lives. You are now ${fullName()}, leader of ${clanName}! ` +
       `Press 1 Follow, 2 Hunt, 3 Guard.`, 6);
+}
+
+// ======================================================
+// Training your own apprentice (R36, R39)
+// ======================================================
+function trySparring() {
+  if (!trainee || trainee.lesson !== "battle") return false;
+  if (!inFront(player, player.heading, trainee, 2.2, 0.35) || player.attackCooldown > 0) return false;
+  player.attackCooldown = 0.4;
+  player.attackTimer = 0.25;
+  trainee.lessonCount++;
+  if (trainee.lessonCount >= LESSON_HITS) {
+    trainee.lesson = "patrol";
+    trainee.lessonCount = 0;
+    say(`Well done! ${trainee.name} has learned to fight. Last lesson: walk the border markers together.`, 4);
+  } else {
+    say(`Practice hit ${trainee.lessonCount} of ${LESSON_HITS}.`, 1.2);
+  }
+  return true;
+}
+
+function finishTraining() {
+  trainee.lesson = "done";
+  trainee.name = trainee.baseName + WARRIOR_SUFFIXES[(KIT_NAMES.indexOf(trainee.baseName) + 3) % WARRIOR_SUFFIXES.length];
+  trainee.size = 0.95;
+  // It walks straight home to camp
+  trainee.activity = "wander";
+  trainee.target = campYardSpot(trainee.home);
+  trainee.timer = 30;
+  stats.trained++;
+  say(`Your apprentice is now a warrior: ${trainee.name}!`, 3.5);
+  trainee = null;
+}
+
+// The deputy's apprentice follows, and during the hunting lesson catches prey near the deputy
+function updateTrainee(t, dt) {
+  if (t.lesson === "hunt") {
+    const target = allCritters()
+      .filter((c) => critterVisible(c) && distance(c, player) < 15)
+      .sort((a, b) => distance(a, t) - distance(b, t))[0];
+    if (target) {
+      moveToward(t, target, 4, dt);
+      if (distance(t, target) < 0.7) {
+        target.state = "hidden";
+        target.respawn = target === squirrel ? 4 : PREY_RESPAWN;
+        t.lessonCount++;
+        if (t.lessonCount >= LESSON_HUNTS) {
+          t.lesson = "battle";
+          t.lessonCount = 0;
+          say(`${t.name} caught ${LESSON_HUNTS} prey! Next lesson: battle practice. Face your apprentice and press E.`, 4);
+        } else {
+          say(`${t.name} caught some prey (${t.lessonCount}/${LESSON_HUNTS}).`, 1.5);
+        }
+      }
+      return;
+    }
+  }
+  const spot = behindPlayer(2, -1.2);
+  const d = distance(t, spot);
+  if (d > 0.4) moveToward(t, spot, Math.min(d * 3, 5.5), dt);
+  else t.moving = false;
+}
+
+// ======================================================
+// Kits (R31): play in camp; other clans' kits hide from you
+// ======================================================
+function updateKits(dt) {
+  for (const k of kits) {
+    if (k === trainee) {
+      updateTrainee(k, dt);
+      continue;
+    }
+    if (k.clan !== clanName) {
+      // Other clans' kits hide in their nursery while you are near on their land
+      k.hiding = territoryAt(player.x, player.z) === k.clan && distance(player, k.home) < 15 + CAMP_YARD;
+      if (k.hiding) {
+        const nursery = huts.find((h) => h.clan === k.clan && h.id === "nursery");
+        moveToward(k, { x: nursery.x - Math.sin(nursery.door) * 1, z: nursery.z - Math.cos(nursery.door) * 1 }, 4, dt);
+        k.activity = "wander";
+        continue;
+      }
+    }
+    // Play: a new game every few seconds (a kit that is indoors and not hiding comes out to play)
+    k.timer -= dt;
+    if (insideHut(k) && k.activity !== "wander") k.timer = 0;
+    if (k.timer <= 0 || !k.target) {
+      k.activity = k.lesson === "done" || insideHut(k) ? "wander" : ["chase", "pounce", "tumble", "wander"][Math.floor(Math.random() * 4)];
+      k.timer = 2 + Math.random() * 3;
+      k.target = campYardSpot(k.home);
+    }
+    if (k.activity === "chase") {
+      const other = kits.find((o) => o !== k && o.clan === k.clan && o !== trainee) || k;
+      moveToward(k, other === k ? k.target : other, 3.5, dt);
+    } else if (k.activity === "tumble") {
+      k.moving = false;   // rolls on the spot (drawn by render3d.js)
+    } else {
+      moveToward(k, k.target, distance(k, k.home) > KIT_BOUNDARY ? 5 : (k.activity === "pounce" ? 3 : 1.5), dt);
+    }
+    // R31, R42: kits never leave their camp (a newly trained warrior walks home first)
+    const d = distance(k, k.home);
+    if (d > KIT_BOUNDARY - 1 && k.lesson !== "done") {
+      k.x = k.home.x + (k.x - k.home.x) * ((KIT_BOUNDARY - 1) / d);
+      k.z = k.home.z + (k.z - k.home.z) * ((KIT_BOUNDARY - 1) / d);
+    }
+  }
+}
+
+// ======================================================
+// Weather (R30)
+// ======================================================
+function setWeather(w) {
+  weather = w;
+  weatherTimer = WEATHER_TIME;
+}
+
+function updateWeather(dt) {
+  weatherTimer -= dt;
+  if (weatherTimer > 0) return;
+  // Pick a different weather; storms are the rarest
+  const choices = ["clear", "clear", "clear", "rain", "rain", "fog", "fog", "wind", "wind", "storm"].filter((w) => w !== weather);
+  setWeather(choices[Math.floor(Math.random() * choices.length)]);
+  const words = { clear: "The sky clears.", rain: "It starts to rain. Prey hides from the wet.",
+                  fog: "Fog rolls in. Prey won't notice you so easily.", wind: "The wind picks up. Scents carry far.",
+                  storm: "A thunderstorm! Prey hides, and other clans' patrols stay in camp." };
+  say(words[weather], 3);
 }
 
 function giveOrder(newOrder) {
@@ -1497,7 +1982,18 @@ function updateClanmates(dt) {
 // Camp cats (R16 friendly, R18 injured, R19 mentors)
 // ======================================================
 function isFollowingMentor(c) {
-  return stage === 2 && mentor !== null && c.mentorId === mentor;
+  return stage === 1 && mentor !== null && c.mentorId === mentor;
+}
+
+// R44: the mentor leads the apprentice toward the task, but comes back if the apprentice falls behind
+function mentorTarget(c) {
+  const spot = taskSpot();
+  if (!spot || distance(c, player) > 10) return behindPlayer(2.2, 1.4);
+  if (distance(c, spot) < 3) return c;   // waits at the task
+  // Walk toward the task, but not more than 10 away from the apprentice
+  const d = distance(spot, player);
+  if (d <= 9) return spot;
+  return { x: player.x + (spot.x - player.x) * (9 / d), z: player.z + (spot.z - player.z) * (9 / d) };
 }
 
 function updateCampCats(dt) {
@@ -1520,7 +2016,7 @@ function updateCampCats(dt) {
       continue;
     }
     if (isFollowingMentor(c)) {
-      const target = behindPlayer(2.2, 1.4);
+      const target = mentorTarget(c);
       const d = distance(c, target);
       if (d > 0.4) moveToward(c, target, Math.min(d * 3, 5.5), dt);
       else c.moving = false;
@@ -1595,10 +2091,10 @@ function updateHerbs(dt) {
 // ======================================================
 function myDen() {
   let id = "nursery";
-  if (stage === 2 || (stage === 3 && role === null)) id = "apprentices";
-  else if (stage === 3 && role === "Leader") id = "leader";
-  else if (stage === 3 && role === "Medicine cat") id = "medicine";
-  else if (stage === 3) id = "warriors";
+  if (stage === 1 || (stage === 2 && role === null)) id = "apprentices";
+  else if (stage === 2 && role === "Leader") id = "leader";
+  else if (stage === 2 && role === "Medicine cat") id = "medicine";
+  else if (stage === 2) id = "warriors";
   return dens.find((d) => d.id === id);
 }
 
@@ -1749,12 +2245,14 @@ function cameraFor() {
   const height = 0.35 + 0.7 * size;
   const fx = Math.sin(player.camHeading);
   const fz = Math.cos(player.camHeading);
+  // R32: looking up lowers the camera and tilts it up; looking down raises it and tilts it down
+  const pitch = player.camPitch || 0;
   const cam = {
     x: player.x - fx * back,
-    y: player.y + height,
+    y: Math.max(0.12, player.y + height - pitch * 0.5 * size),
     z: player.z - fz * back,
     lookX: player.x + fx * 4,
-    lookY: player.y + 0.45 * size,
+    lookY: player.y + 0.45 * size + Math.tan(pitch) * 4,
     lookZ: player.z + fz * 4,
   };
   // R25: inside a hut, keep the camera inside the walls
