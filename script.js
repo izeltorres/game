@@ -557,7 +557,8 @@ $("controls-help").innerHTML = `<h3>Controls</h3>
   <p>Walk: W/&uarr; (tap twice to run) &middot; Back: S/&darr; &middot; Turn: A/D or &larr;/&rarr; or the mouse &middot; Stalk: Shift &middot; Jump: Space</p>
   <p>Action: E &middot; Scent: hold Q &middot; Map: M &middot; Herbs: H (and click an herb you aim at) &middot; Drop prey: G</p>
   <p>Fight: E swipe &middot; C dodge &middot; F pounce attack &middot; R bite</p>
-  <p>Look up/down: click the game, then move the mouse &middot; Climb: walk into a tree</p>
+  <p>Look up/down: click the game, then move the mouse &middot; Climb: walk into a tree (E at a branch to lie on it)</p>
+  <p>Call a patrol to help against a rogue pack: V</p>
   <p>Leader orders: 1 Follow &middot; 2 Hunt &middot; 3 Guard &middot; 4 Big hunt &middot; Menu: Esc (stops fishing while fishing)</p>`;
 initView($("game"));
 initPreview($("preview"));

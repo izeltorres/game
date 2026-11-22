@@ -188,6 +188,14 @@ const HUNGER_TIME = 180;           // camp cats eat from the pile about this oft
 const SEASONS = ["newleaf", "greenleaf", "leaf-fall", "leaf-bare"];   // R69
 const SEASON_DAYS = 30;
 const BEETLES_PER_PREY = 4;        // R69c
+// ---------- Round 7 ----------
+const SLEEP_TIME = 3;              // seconds curled up asleep before waking next morning (R71)
+const NAMETAG_RANGE = 25;          // nametags show for important cats this close (R70)
+const CALL_COOLDOWN = 60;          // R75: seconds between calls for a patrol
+const HELPER_DAMAGE = 8;
+const HELPER_SWIPE = 1.2;          // seconds between a helper's swipes
+const HELP_TIME = 60;              // a called patrol goes home after this long at most
+const BRANCH_REACH = 0.6;          // R73: how close to a branch's height you must be to step onto it
 const DEMOS = { patrol: "sniff", squirrel: "stalk", climb: "look-up", fish: "swipe", rogue: "fight" };   // R58
 const TIPS = {
   patrol: "Tip: the markers glow, and the next one glows brightest.",
@@ -313,6 +321,8 @@ let pileDay = 1;
 let leaders = [];           // every clan's leader (R69a)
 let steppingStones = [];    // stepping stones across the water (R59)
 let socialClock = SOCIAL_TIME;   // when camp cats next pair up (R63)
+let helpers = [];           // camp cats answering your call for help (R75)
+let callCooldown = 0;
 
 // Places for the player's own clan (filled in by resetGame)
 const CAMP = { x: 0, z: 0 };
@@ -446,7 +456,7 @@ function resetGame() {
 
   Object.assign(player, {
     x: CAMP.x, z: CAMP.z + 3, y: 0, vy: 0, heading: 0, turnVel: 0, camHeading: 0, camPitch: 0, onGround: true,
-    crouching: false, moving: false, running: false, scenting: false, climbing: null, walk: 0,
+    crouching: false, moving: false, running: false, scenting: false, climbing: null, onBranch: null, sleeping: 0, walk: 0,
     hp: 100, food: 100, attackTimer: 0, attackCooldown: 0, hurtTimer: 0,
     dodgeTimer: 0, dodgeCooldown: 0, dodgeX: 0, dodgeZ: 0, recover: 0, biteCooldown: 0,
     carrying: null, dropTimer: 0, pouch: { marigold: 0, dock: 0 },
@@ -478,6 +488,8 @@ function resetGame() {
   kits = buildKits();
   medicineCats = buildMedicineCats();
   // Round 6
+  helpers = [];   // Round 7
+  callCooldown = 0;
   rogueMates = [];
   pileItems = [{ kind: "mouse", day: 1 }, { kind: "vole", day: 1 }, { kind: "sparrow", day: 1 }];
   freshKill = pileItems.length;
@@ -680,6 +692,16 @@ function watersAt(z) {
   return WATERS.map((w) => (w.bends ? { x0: w.x0 + riverShift(z), x1: w.x1 + riverShift(z) } : { x0: w.x0, x1: w.x1 }));
 }
 
+// R73: a low branch every clan can reach (2 units or lower) and a higher one for ThunderClan.
+// Made from the tree's phase, so no extra random numbers are drawn and the trees stay where they were.
+function branchesFor(h, phase) {
+  const angle = phase * 2.3;
+  return [
+    { y: 1.4 + (phase % 1) * 0.5, angle, length: 2 },
+    { y: Math.min(h - 2.5, 3.3 + ((phase * 1.3) % 2)), angle: angle + 2.6, length: 1.8 },
+  ];
+}
+
 function inRiver(x, z) {
   return watersAt(z).some((w) => x > w.x0 && x < w.x1);
 }
@@ -734,7 +756,8 @@ function buildTrees() {
     if (Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < CAMP_CLEARING)) continue;  // camps are clearings
     if (distance({ x, z }, GATHERING_SPOT) < 12) continue;   // the clearing around the Great Oak (R48)
     if (keepClear.some((p) => Math.hypot(x - p.x, z - p.z) < 5)) continue;
-    list.push({ x, z, r, h: place === "moor" ? h * 0.6 : h, kind: kinds[place], phase });
+    const height = place === "moor" ? h * 0.6 : h;
+    list.push({ x, z, r, h: height, kind: kinds[place], phase, branches: branchesFor(height, phase) });
   }
   return list;
 }
@@ -946,6 +969,7 @@ function update(dt) {
     updateHerbs(dt);
     updateDropped(dt);
     updatePile();
+    updateHelpers(dt);
     updateLeaders(dt);
     updateSocial(dt);
     updateLeaderEvents(dt);
@@ -986,12 +1010,25 @@ function updatePlayer(dt) {
                Object.keys(pressed).length > 0 || !player.onGround;
   player.idleTime = busy ? 0 : player.idleTime + dt;
 
+  // R71: curled up asleep in your den; you can't move until you wake
+  if (player.sleeping > 0) {
+    Object.assign(player, { moving: false, running: false, scenting: false, turnVel: 0 });
+    player.sleeping -= dt;
+    if (player.sleeping <= 0) wakeUp();
+    return;
+  }
+  if (pressed.KeyV) callPatrol();   // R75
+
   if (stage === 2 && role === "Leader" && !ui.pouch) {
     for (const code in ORDERS) if (pressed[code]) giveOrder(ORDERS[code]);
   }
 
   if (player.climbing) {
     updateClimbing(dt);
+    return;
+  }
+  if (player.onBranch) {
+    updateBranch(dt);   // R73
     return;
   }
 
@@ -1165,9 +1202,12 @@ function updateClimbing(dt) {
   const maxHeight = Math.min(clan.climbHeight, tree.h - 2);
   player.y = clamp(player.y + up * clan.climbSpeed * dt, 0, maxHeight);
   // R64: catch a bird perched at your height in this tree, and the mentor's climbing task
+  // R73: otherwise E at a branch steps out onto it
   if (pressed.KeyE) {
     const bird = prey.find((p) => p.perch && p.perch.tree === tree && critterVisible(p) && Math.abs(p.perch.y - player.y) < 1);
+    const branch = (tree.branches || []).find((b) => Math.abs(b.y - player.y) < BRANCH_REACH);
     if (bird) catchPrey(bird);
+    else if (branch) { stepOntoBranch(tree, branch); return; }
   }
   if (currentTask() === "climb" && player.y >= CLIMB_TASK_HEIGHT) finishTask("You can see our whole territory from up there!");
   if (up !== 0) player.walk += dt * 8;
@@ -1209,7 +1249,7 @@ function knockedOut(faintText) {
 function faint(text) {
   say(text, 3);
   Object.assign(player, {
-    x: CAMP.x, z: CAMP.z + 1, y: 0, vy: 0, onGround: true, climbing: null, running: false, scenting: false,
+    x: CAMP.x, z: CAMP.z + 1, y: 0, vy: 0, onGround: true, climbing: null, onBranch: null, sleeping: 0, running: false, scenting: false,
     hp: 100, food: Math.max(player.food, 50), hurtTimer: 0, dodgeTimer: 0, recover: 0, turnVel: 0,
   });
   snapCamera();
@@ -1717,6 +1757,13 @@ function hurtEnemy(e, amount) {
 function defeatEnemy(e) {
   if (e === rogue) {
     beatRogue();
+    return;
+  }
+  if (e.isMate) {
+    // R62: one of a pack runs off; the fight is won when the pack leader is beaten
+    e.state = "fleeing";
+    e.fleeTimer = 3;
+    say("One of the rogues runs off!", 1.5);
     return;
   }
   if (e.clan && rivalry[e.clan] !== undefined) changeRivalry(e.clan, 5);   // R54
@@ -2397,6 +2444,7 @@ function updateCampCats(dt) {
       c.moving = false;   // lies still until healed
       continue;
     }
+    if (c.helping) continue;   // out fighting rogues with you (R75)
     if (isFollowingMentor(c)) {
       const target = mentorTarget(c);
       const d = distance(c, target);
@@ -2520,11 +2568,19 @@ function useDen(den) {
     say(`This is the ${den.name}. Your den is the ${mine.name}.`, 2.5);
     return;
   }
-  // Sleep until the next morning
+  // R71: curl up in your nest for a moment, then wake up the next morning
+  player.sleeping = SLEEP_TIME;
+  player.sleepDen = den;
+  say(`You curl up in your nest in the ${den.name}, nose to tail, and fall asleep...`, SLEEP_TIME);
+}
+
+// Sleep until the next morning (R20)
+function wakeUp() {
+  player.sleeping = 0;
   if (dayFraction() >= START_TIME) day++;
   dayTime = START_TIME * DAY_LENGTH;
   player.hp = 100;
-  say(`You curl up in the ${den.name} and sleep. You wake up refreshed at ${clockText()}.`, 3);
+  say(`You wake up refreshed in the ${player.sleepDen.name} at ${clockText()}.`, 3);
 }
 
 function useFreshKill() {
@@ -3163,7 +3219,7 @@ function catBodies() {
 }
 
 function pushPlayerOutOfCats() {
-  if (player.climbing) return;
+  if (player.climbing || player.onBranch) return;
   for (const c of catBodies()) {
     const min = kits.includes(c) ? CAT_BODY * 0.75 : CAT_BODY;
     const dx = player.x - c.x;
@@ -3182,12 +3238,12 @@ function canReachUpTree(enemy) {
 }
 
 function outOfReach(enemy) {
-  return !!player.climbing && player.y > TREE_REACH && !canReachUpTree(enemy);
+  return !!(player.climbing || player.onBranch) && player.y > TREE_REACH && !canReachUpTree(enemy);   // a branch counts too (R73)
 }
 
 // R64: high in a tree you can see far
 function lookingOut() {
-  return !!player.climbing && player.y > LOOKOUT_HEIGHT;
+  return !!(player.climbing || player.onBranch) && player.y > LOOKOUT_HEIGHT;   // a branch counts too (R73)
 }
 
 function spottedFromTree() {
@@ -3370,6 +3426,108 @@ function updateRoguePack(dt) {
     r.target = null;
     say("Rogues raided your camp! They stole fresh-kill and hurt a clanmate.", 3.5);
   }
+}
+
+// ======================================================
+// Round 7
+// ======================================================
+// R70: the cats that get a nametag
+function importantCats() {
+  const list = [];
+  if (stage === 1 && mentorCat()) list.push(mentorCat());
+  if (role === "Deputy" && trainee) list.push(trainee);
+  return list.concat(leaders.filter((l) => !l.retired), medicineCats);
+}
+
+// R73: step out from the trunk onto a branch; the cat lies along it
+function branchSpot(tree, branch) {
+  const out = tree.r + 0.9;
+  return { x: tree.x + Math.sin(branch.angle) * out, z: tree.z + Math.cos(branch.angle) * out };
+}
+
+function stepOntoBranch(tree, branch) {
+  Object.assign(player, branchSpot(tree, branch), { y: branch.y, heading: branch.angle, climbing: null,
+                                                   onBranch: branch, branchTree: tree, onGround: false, vy: 0 });
+  say(lookingOut() ? "You stretch out on a high branch. You can see far from up here." : "You stretch out on the branch and relax.", 2);
+}
+
+function updateBranch(dt) {
+  const tree = player.branchTree;
+  const b = player.onBranch;
+  Object.assign(player, { moving: false, running: false, scenting: false, turnVel: 0 });
+  if (wasPressed("Space")) {
+    // Jump down, out past the end of the branch
+    player.onBranch = null;
+    player.x += Math.sin(b.angle) * 0.6;
+    player.z += Math.cos(b.angle) * 0.6;
+    player.vy = 1;
+    player.onGround = false;
+    return;
+  }
+  if (pressed.KeyE || isDown("KeyS", "ArrowDown")) {
+    // Back to the trunk, at the same height
+    player.onBranch = null;
+    player.x = tree.x + Math.sin(b.angle) * (tree.r + 0.45);
+    player.z = tree.z + Math.cos(b.angle) * (tree.r + 0.45);
+    player.climbing = tree;
+  }
+}
+
+// R75: call a patrol of your clan's warriors to fight a rogue pack with you
+
+function packAttacking() {
+  return rogue.smart && rogue.state === "fighting";
+}
+
+function callPatrol() {
+  if (!packAttacking()) {
+    say("There is no rogue pack attacking you - no need to call for help.", 2);
+    return;
+  }
+  if (callCooldown > 0) {
+    say(`Your clanmates will answer again soon - wait ${Math.ceil(callCooldown)} seconds.`, 2);
+    return;
+  }
+  const free = campCats.filter((c) => !c.injured && !c.helping && c.name !== QUEEN.name && !isFollowingMentor(c)).slice(0, 3);
+  if (!free.length) {
+    say("Nobody in camp is fit to come and help!", 2);
+    return;
+  }
+  callCooldown = CALL_COOLDOWN;
+  free.forEach((c) => Object.assign(c, { helping: true, helpTimer: HELP_TIME, swipeTimer: 0, social: null, partner: null, eating: false }));
+  helpers = helpers.concat(free);
+  playSound("meow");
+  say(`You yowl for help! ${free.map((c) => c.name).join(", ")} race out of camp to fight beside you.`, 3);
+}
+
+function updateHelpers(dt) {
+  callCooldown = Math.max(0, callCooldown - dt);
+  for (const c of helpers) {
+    c.helpTimer -= dt;
+    c.attackTimer = Math.max(0, (c.attackTimer || 0) - dt);
+    const foes = [rogue, ...rogueMates].filter((r) => r.state === "fighting");
+    if (c.helpTimer > 0 && foes.length) {
+      const target = foes.sort((a, b) => distance(a, c) - distance(b, c))[0];
+      if (distance(c, target) > 1.4) {
+        moveToward(c, target, 7, dt);
+      } else {
+        c.moving = false;
+        c.heading = Math.atan2(target.x - c.x, target.z - c.z);
+        c.swipeTimer -= dt;
+        if (c.swipeTimer <= 0) {
+          c.swipeTimer = HELPER_SWIPE;
+          c.attackTimer = 0.25;
+          playSound("swish");
+          hurtEnemy(target, HELPER_DAMAGE);
+        }
+      }
+    } else {
+      // The fight is over (or it went on too long): back to camp
+      moveToward(c, CAMP, 5, dt);
+      if (distance(c, CAMP) < CAMP_YARD + 1) c.helping = false;
+    }
+  }
+  helpers = helpers.filter((c) => c.helping);
 }
 
 // ======================================================

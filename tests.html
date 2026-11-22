@@ -127,7 +127,7 @@
     }
     // Put the player at (x, z) facing +z, standing still on the ground
     function place(x, z) {
-      Object.assign(player, { x, z, y: 0, vy: 0, heading: 0, turnVel: 0, onGround: true, climbing: null,
+      Object.assign(player, { x, z, y: 0, vy: 0, heading: 0, turnVel: 0, onGround: true, climbing: null, onBranch: null, sleeping: 0,
                               running: false, dodgeTimer: 0, dodgeCooldown: 0, recover: 0, attackCooldown: 0,
                               biteCooldown: 0 });
     }
@@ -2648,9 +2648,10 @@
           placeAt(-20, -25);
           rogue.respawn = 0; step(0.1);
           Object.assign(rogue, { x: player.x, z: player.z + 4 }); step(0.3);
+          campCats.forEach((c) => { c.injured = false; });
           press("KeyV");
-          const m = campCats.find((c) => c.mentorId);
-          return rogue.state === "fighting" && helpers.length === 3 && helpers.every((h) => campCats.includes(h) && !h.injured && !h.mentorId) &&
+          // (the camp's warriors: not the nursing queen, who stays with the kits)
+          return rogue.state === "fighting" && helpers.length === 3 && helpers.every((h) => campCats.includes(h) && !h.injured && h.name !== QUEEN.name) &&
             CALL_COOLDOWN === 60;
         });
         check("R75", "the patrol runs to you and fights the rogues", () => {

@@ -343,6 +343,8 @@ function makeCatModel(catLook) {
 // tipCurl: extra bend of the last segments (the question-mark tip); swish/speed: side-to-side motion;
 // puff: how fluffed up it is; side: swing to the cat's left (+) or right (-) when turning.
 function tailPoseFor(s) {
+  // R71: asleep, the tail wraps round to the nose
+  if (s.curl) return { lift: -0.1, curl: 0, tipCurl: 0, swish: 0.02, speed: 1, puff: 1, side: 2.6 };
   let p;
   if (s.lying) p = { lift: -0.15, curl: 0.02, tipCurl: 0, swish: 0.04, speed: 1, puff: 1 };
   else if (s.fighting) p = { lift: 0.55, curl: -0.04, tipCurl: 0, swish: 0.9, speed: 9, puff: 1.6 };
@@ -372,6 +374,8 @@ function poseTail(model, pose, t) {
 // R46: what the cat's body is doing, from its pose
 const BLINK_EVERY = 3.5;           // seconds between blinks
 function postureFor(pose) {
+  if (pose.curl) return "curl";        // R71: asleep in the den, nose to tail
+  if (pose.lieDown) return "lie";      // R73: lying along a branch
   if (pose.lying) return "hurt";
   if (pose.climbing) return "climb";
   if (pose.airborne) return "leap";
@@ -408,12 +412,13 @@ function poseCat(model, pose, t) {
   parts.body.position.y = pose.crouch ? -0.1 : (pose.moving ? Math.abs(Math.sin(walk)) * (pose.running ? 0.06 : 0.03) : 0);
   if (posture === "sit") parts.body.rotation.x = -0.45;
   if (posture === "lie") parts.body.position.y = -0.22;
+  if (posture === "curl") { parts.body.position.y = -0.24; parts.body.rotation.y = 0.35; }
   if (posture === "flinch") parts.body.rotation.x = -0.3;
   if (pose.limp && pose.moving) parts.body.rotation.z = Math.sin(walk) * 0.08;
 
   // Breathing and blinking (R46)
   parts.torso.scale.set(parts.torsoScale.x, parts.torsoScale.y * (1 + 0.03 * Math.sin(t * 2.2 + offset)), parts.torsoScale.z);
-  const blinking = (t + offset) % BLINK_EVERY < 0.12;
+  const blinking = posture === "curl" || (t + offset) % BLINK_EVERY < 0.12;   // eyes shut while asleep
   parts.eyes.forEach((e) => e.scale.set(parts.eyeScale.x, parts.eyeScale.y * (blinking ? 0.15 : 1), parts.eyeScale.z));
   const twitch = (t + offset * 2) % 4.3 < 0.15 ? 0.35 : 0;
   parts.ears.forEach((ear, i) => { ear.rotation.z = (i ? -0.25 : 0.25) + (i ? -twitch : 0); });
@@ -433,7 +438,7 @@ function poseCat(model, pose, t) {
       x = Math.sin(t * 8 + leg.userData.phase) * 0.5;                   // paddling
     } else if (posture === "sit") {
       x = front ? 0.25 : 1.3;
-    } else if (posture === "lie") {
+    } else if (posture === "lie" || posture === "curl") {
       x = front ? -1.4 : 1.4;
     }
     if (pose.attack && i === 1) x = -1.3;   // swipe with a front paw
@@ -447,9 +452,10 @@ function poseCat(model, pose, t) {
   if (pose.carrying) parts.head.rotation.x = -0.25;
   else if (pose.dropping > 0) parts.head.rotation.x = 0.5 * pose.dropping / DROP_TIME;
   else if (posture === "eat") parts.head.rotation.x = 0.6 + Math.sin(t * 12) * 0.08;
+  else if (posture === "curl") parts.head.rotation.x = 0.55;
   else parts.head.rotation.x = 0;
   const idleLook = (pose.idle || 0) >= 2 && ["stand", "sit", "lie"].includes(posture);
-  parts.head.rotation.y = idleLook ? Math.sin(t * 0.5 + offset) * 0.5 : 0;
+  parts.head.rotation.y = posture === "curl" ? 1.9 : (idleLook ? Math.sin(t * 0.5 + offset) * 0.5 : 0);   // asleep: head turned back to the tail
 
   for (const kind in parts.carryModels) parts.carryModels[kind].visible = pose.carrying === kind;
   parts.hurt.visible = !!pose.hurt;
@@ -992,6 +998,10 @@ function buildScene() {
     trunkMats[name] = texturedMat(PLACES[name].trunk, "bark", 2, 1);   // R60
     leafMats[name] = PLACES[name].leaves.map((c) => mat(c, { flatShading: true }));
   }
+  const branchModels = [];   // R73
+  const branchGeo = new THREE.CylinderGeometry(0.06, 0.13, 1, 6);
+  branchGeo.rotateX(Math.PI / 2);   // lying along +z, thin end outwards
+  branchGeo.translate(0, 0, 0.5);
   const treeTops = [];
   for (const t of trees) {
     const place = biomeAt(t.x, t.z);
@@ -1025,6 +1035,15 @@ function buildScene() {
     top.userData.phase = t.phase;
     scene.add(top);
     treeTops.push(top);
+    // R73: branches to lie on, sticking out of the trunk
+    for (const b of t.branches || []) {
+      const branch = new THREE.Mesh(branchGeo, trunkMats[place]);
+      branch.position.set(t.x + Math.sin(b.angle) * t.r * 0.6, b.y - 0.12, t.z + Math.cos(b.angle) * t.r * 0.6);
+      branch.rotation.y = b.angle;
+      branch.scale.set(1, 1, b.length + t.r * 0.4);
+      scene.add(branch);
+      branchModels.push(branch);
+    }
   }
 
   // Grass (R24)
@@ -1223,21 +1242,21 @@ function buildScene() {
   pileStack.position.set(FRESH_KILL.x, 0, FRESH_KILL.z);
   scene.add(pileStack);
 
-  // R67: border markers are tall glowing posts
+  // R72 (changes R67): border markers are glowing highlights on the ground, with no post
   const markerModels = BORDER_MARKERS.map((mk) => {
     const g = new THREE.Group();
-    const glowMat = mat("#ffd86b", { emissive: "#ffb830", emissiveIntensity: 0.5 });
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3.2, 8), mat("#6a4a2a", { map: makeTexture("bark") }));
-    post.position.y = 1.6;
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), glowMat);
-    ball.position.y = 3.35;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.1, 24),
-      new THREE.MeshBasicMaterial({ color: "#ffd86b", transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+    const radius = 1.3;
+    const glowMat = new THREE.MeshBasicMaterial({ color: "#ffd86b", transparent: true, opacity: 0.35, depthWrite: false, fog: false });
+    const patch = new THREE.Mesh(new THREE.CircleGeometry(radius, 28), glowMat);
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.y = 0.04;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(radius, radius + 0.25, 32),
+      new THREE.MeshBasicMaterial({ color: "#fff2b0", transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, fog: false }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.05;
-    g.add(post, ball, ring);
+    g.add(patch, ring);
     g.position.set(mk.x, 0, mk.z);
-    g.userData = { height: 3.2, glow: 0.5, glowMat, ring };
+    g.userData = { radius, glow: 0.5, glowMat, ring };
     scene.add(g);
     return g;
   });
@@ -1284,6 +1303,7 @@ function buildScene() {
     playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels, kitModels,
     rain, fishModels, ripple, lightningFlash: 0, greatOak, medicineCatModels, stolenModel, raiderModels: [], leaderModels: [],
     preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
+    branchModels, nametags: [],
     riverMesh,
     groundMaterials, barkMaterial: Object.values(trunkMats)[0], rockMaterial: stoneMat, hutMaterial: hutMaterial(false), waterMaterial: waterMat,
     banks, pebbles, lilyPads, stoneModels, jumpingFish, splash, pileStack, pileModels: [], markerModels, leaves, snow, spotMarkers,
@@ -1372,6 +1392,7 @@ function playerPose(size, t) {
     // R46: still time, leaping, eating, limping when hurt, flinching when hit
     idle: player.idleTime, airborne: !player.onGround && !player.climbing, eating: player.eatTimer,
     limp: player.hp < LOW_HEALTH, flinch: player.hurtTimer > 0,
+    curl: player.sleeping > 0, lieDown: !!player.onBranch,   // R71 asleep, R73 on a branch
   };
 }
 
@@ -1418,7 +1439,7 @@ function updateCats(t) {
     const heading = social && c.partner ? Math.atan2(c.partner.x - c.x, c.partner.z - c.z) : c.heading;
     poseCat(model, { x: c.x, y: 0, z: c.z, heading, size: 0.95, moving: c.moving || demo === "stalk", walk: c.walk,
                      lying: c.injured, hurt: c.injured, crouch: demo === "sniff" || demo === "stalk" || social === "argue",
-                     fighting: demo === "fight" || social === "argue", attack: demo === "swipe" && Math.sin(t * 3) > 0.6,
+                     fighting: demo === "fight" || social === "argue" || !!c.helping, attack: (demo === "swipe" && Math.sin(t * 3) > 0.6) || c.attackTimer > 0,
                      eating: social === "share" ? 1 : 0, idle: social === "groom" ? 6 : 0 }, t);
     if (demo === "look-up") model.userData.head.rotation.x = -0.7;
     if (demo === "sniff") model.userData.head.rotation.x = 0.6;
@@ -1691,9 +1712,9 @@ function updateRound6View(t, cam) {
     const next = i === markersVisited;
     const glow = next ? 1.2 + Math.sin(t * 4) * 0.3 : (i < markersVisited ? 0.15 : 0.5);
     m.userData.glow = next ? 1.2 : (i < markersVisited ? 0.15 : 0.5);
-    m.userData.glowMat.emissiveIntensity = glow;
-    m.userData.ring.visible = next;
-    m.userData.ring.scale.setScalar(1 + (t % 1.5) * 0.5);
+    m.userData.glowMat.opacity = Math.min(0.9, 0.12 + glow * 0.45);   // the next one pulses brightest (R72)
+    m.userData.ring.material.opacity = next ? 0.9 : 0.4;
+    m.userData.ring.scale.setScalar(next ? 1 + (t % 1.5) * 0.25 : 1);
     m.visible = true;
   });
 
@@ -1757,6 +1778,54 @@ function updateRound6View(t, cam) {
   });
 }
 
+// ======================================================
+// Round 7
+// ======================================================
+// R70: a small nametag (a sprite with the name drawn on a canvas)
+function makeNametag(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 64;
+  const c = canvas.getContext("2d");
+  c.font = "bold 30px Georgia";
+  const w = Math.min(248, c.measureText(text).width + 28);
+  c.fillStyle = "rgba(20, 16, 10, 0.6)";
+  c.beginPath();
+  c.moveTo(128 - w / 2 + 14, 10);
+  c.arcTo(128 + w / 2, 10, 128 + w / 2, 54, 14);
+  c.arcTo(128 + w / 2, 54, 128 - w / 2, 54, 14);
+  c.arcTo(128 - w / 2, 54, 128 - w / 2, 10, 14);
+  c.arcTo(128 - w / 2, 10, 128 + w / 2, 10, 14);
+  c.fill();
+  c.fillStyle = "#fff4d8";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.fillText(text, 128, 33);
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthWrite: false, fog: false }));
+  tag.scale.set(1.6, 0.4, 1);
+  tag.userData.text = text;
+  return tag;
+}
+
+function updateRound7View() {
+  // R70: tags over the important cats that are near you
+  const cats = importantCats();
+  if (view.nametags.length !== cats.length || view.nametags.some((t, i) => t.userData.source !== cats[i] || t.userData.text !== cats[i].name)) {
+    view.nametags.forEach((t) => view.scene.remove(t));
+    view.nametags = cats.map((c) => {
+      const tag = makeNametag(c.name);
+      tag.userData.source = c;
+      view.scene.add(tag);
+      return tag;
+    });
+  }
+  view.nametags.forEach((tag) => {
+    const c = tag.userData.source;
+    tag.position.set(c.x, (c.size || 1) * 1.05 + 0.35, c.z);
+    tag.visible = playing && distance(c, player) < NAMETAG_RANGE;
+  });
+}
+
 // R21: on the title screen the camera slowly circles the camp
 function titleCamera(t) {
   const a = t * 0.1;
@@ -1783,6 +1852,7 @@ function renderFrame() {
   updateFishingView(t);
   updateRound5View(t);
   updateRound6View(t, cam);
+  updateRound7View();
 
   // R11/R12/R25: the camera sits low and close behind the cat (inside a hut when you are)
   view.camera.position.set(cam.x, cam.y, cam.z);

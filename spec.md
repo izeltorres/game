@@ -667,8 +667,8 @@ numbers don't clash.
 
 ### R75. Call a patrol for help
 - When a rogue pack (R62) is attacking you, press **V** to call for help, at any rank.
-- A patrol of 3 of your clan's warriors (camp cats who aren't hurt, and not your mentor) runs out of
-  camp to you and fights the rogues: each warrior swipes a nearby rogue for 8 damage about every
+- A patrol of up to 3 of your clan's warriors (the camp cats who aren't hurt; never the nursing queen,
+  who stays with the kits) runs out of camp to you and fights the rogues: each warrior swipes a nearby rogue for 8 damage about every
   1.2 seconds.
 - When the pack flees (or after a minute), the patrol walks back to camp.
 - You can call again 60 seconds after a call. Calling when no pack is attacking you does nothing but
