@@ -25,6 +25,7 @@ The camera sits low and close behind your cat and swings round smoothly when you
 | Shift | Stalk (crouch and move slowly) |
 | Space | Jump (or jump off a tree) |
 | E | Action: catch prey, fish, swipe, pick herbs, rest in your den, use the fresh-kill pile, heal a clanmate |
+| Mouse | Click the game to capture the mouse, then move it to look up and down and to turn. Esc lets go of the mouse and opens the menu |
 | Q (hold) | Scent the air: glowing trails lead to nearby prey |
 | M | Map of the clan territories |
 | H | Herb pouch. While it is open, 1 = marigold, 2 = dock leaf |
@@ -49,6 +50,8 @@ The world is split into 4 clan territories. Press **M** to see the map.
 
 - Your clan's cats are friendly. On another clan's land, their patrols and the cats living in their camp
   will attack you, and the HUD turns red. Leave their land and they let you go.
+- Kits play in every camp. Yours chase each other, pounce and tumble about; other clans' kits hide in their
+  nursery when you come near.
 - Your camp has five huts you can walk into through their doorways (the nursery, the apprentices' den,
   the warriors' den, the medicine den and the leader's den in front of the Highrock), and a fresh-kill pile.
   Trees, rocks and hut walls are solid.
@@ -73,18 +76,21 @@ The world is split into 4 clan territories. Press **M** to see the map.
   2 for dock leaf (heals 15).
 - With no food, health slowly drops. At zero health your cat faints and wakes up at camp, keeping its progress.
 - A full day and night lasts **one real hour**, with sunrise, sunset and a starry night.
+- **Weather** changes every few minutes: clear, rain (only half the prey comes out, scent is weaker), fog (prey notices
+  you less), wind (scent carries further) or a thunderstorm (all prey hides and other clans' patrols stay home).
+- **Fishing:** press E by the water. Fish swim under the surface; press E when one is under your paw (the ripple).
+  RiverClan's paw reaches further.
 
 ### Tasks and ranks
 
-| Rank | Task | Reward |
+| Rank | What to do | Reward |
 | --- | --- | --- |
-| Kit | Hunt a squirrel. Stalk up to it without being heard, then pounce. Beetles and mice are easy extra food. | The cat grows |
-| Kit | Go fishing at the water in your territory. Press E when the fish is in the gold zone, 3 times. | Become an apprentice (*-paw*) and choose a mentor |
-| Apprentice | Chase a rogue cat off your territory. | Choose a role: Warrior, Deputy or Medicine cat |
-| Warrior | Catch 5 prey (mice, squirrels, fish) and win 3 fights (rogues or patrols). | Become Leader (*-star*) |
-| Deputy | Catch 3 prey and win 2 fights. | Become Leader |
+| Kit | Stay in camp and catch 5 beetles and 3 mice there (stalk mice with Shift). You grow with every catch. | Become an apprentice (*-paw*) and choose a mentor |
+| Apprentice | Do your mentor's tasks; your mentor leads the way: walk the border (3 markers), hunt a squirrel, catch 3 fish, chase off a rogue. | Choose a path: Warrior or Medicine cat. The clan leader gives you your warrior name |
+| Warrior | Catch 5 prey (mice, squirrels, fish), win 3 fights (rogues or other clans' cats) and walk a border patrol. | Become Deputy |
+| Deputy | Catch 3 prey, win 2 fights, and train one of the camp's kits as your apprentice: a hunting lesson (it catches 3 prey near you), battle practice (3 practice hits with E), and a border patrol together. | Become Leader (*-star*) with nine lives |
 | Medicine cat | Heal hurt clanmates in camp (E next to them, with herbs in your pouch). | Medicine cats never become leader |
-| Leader | Give orders to your 3 clanmates: Follow (they help you fight), Hunt (they bring fresh-kill), Guard (they guard camp). | |
+| Leader | Give orders to your 3 clanmates: Follow (they help you fight), Hunt (they bring fresh-kill), Guard (they guard camp). You have **nine lives**: at 0 health you lose one and get up again. Losing the ninth is game over. | |
 
 ### Mentors
 
@@ -119,7 +125,7 @@ The world is split into 4 clan territories. Press **M** to see the map.
 - `render3d.js`: the 3D drawing (Three.js).
 - `script.js`: keyboard, menu, HUD, map, herb pouch and main loop.
 - `tests.html`: automatic tests. Open it in a browser; it plays through the game and lists PASS/FAIL
-  for each check, each named with its requirement ID (R1–R29).
+  for each check, each named with its requirement ID (R1–R46).
 - `problem.md`, `spec.md`: what the game should be.
 - `decision.md`, `docs/decisions/`, `handoff.md`, `handoff-round-N.md`: project notes and decision records.
 

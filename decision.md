@@ -39,3 +39,19 @@
 - R29: cats in other clans' camps defend their camp (they attack on their land when you come close).
 - R22: remove only the name/rank/clan line. Keep the task, clock, territory and bars.
 - R27: drop carried prey anywhere with a key (G); it can be picked up again.
+
+## Session 5 (2026-11-21) - Round 4
+
+- Build Round 4 (R30–R46) from `problem.md`. There is no R33 or R34.
+- R42/R45: kits stay in camp and must catch a mix of beetles and mice (5 beetles, 3 mice) to become apprentices.
+- R44/R45: the mentor's tasks are a border patrol, hunting a squirrel, catching fish, and chasing off a rogue.
+- R36/R39: only deputy → leader needs training. The deputy takes a camp kit as its apprentice
+  and trains it with lessons together (hunting, battle practice, border patrol).
+- R37: losing the ninth life is game over.
+- R32: tilt the camera with the mouse.
+- R35: a realistic fish model and real 3D fishing (swipe when a fish is under your paw).
+- R30: weather is clear, rain, fog, wind and thunderstorms.
+- R38: keep the hunger rule as it is.
+- R40: the clan leader gives a random warrior name in a short ceremony.
+- R31: 4 playing kits in your camp, and kits in the other camps too (they hide when you come near).
+- R46: idle life, better moves, and eating/hurt animations.
