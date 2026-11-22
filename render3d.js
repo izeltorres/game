@@ -82,6 +82,7 @@ function makeCatModel(catLook) {
   const muzzle = blob(fur, 0.075, 0.055, 0.06, 0, -0.06, 0.14);
   head.add(muzzle);
   const earGeo = new THREE.ConeGeometry(0.065, 0.14, 4);
+  const eyes = [];
   const ears = [-1, 1].map((side) => {
     const ear = new THREE.Mesh(earGeo, fur);
     ear.position.set(side * 0.09, 0.14, -0.01);
@@ -93,6 +94,7 @@ function makeCatModel(catLook) {
     head.add(inner);
     const eye = blob(mat(catLook.eyes, { emissive: catLook.eyes, emissiveIntensity: 0.25 }), 0.035, 0.04, 0.025, side * 0.07, 0.02, 0.135);
     head.add(eye);
+    eyes.push(eye);
     head.add(blob(mat("#111111"), 0.012, 0.032, 0.015, side * 0.07, 0.02, 0.157));
     return ear;
   });
@@ -229,7 +231,8 @@ function makeCatModel(catLook) {
   cat.add(hurt);
 
   cat.userData = { body, head, legs, paws, torso, tailPivots, tailSegments, patternPieces, carryModels, hurt,
-                   legLength, bodyLength: 0.84 };
+                   legLength, bodyLength: 0.84, eyes, ears, torsoScale: torso.scale.clone(), eyeScale: eyes[0].scale.clone(),
+                   posture: "stand", limp: false };
   cat.rotation.order = "YXZ";   // turn first, then tilt (for climbing)
   return cat;
 }
@@ -265,24 +268,88 @@ function poseTail(model, pose, t) {
   model.userData.tailSegments.forEach((seg) => seg.scale.set(tail.puff, 1, tail.puff));
 }
 
+// R46: what the cat's body is doing, from its pose
+const BLINK_EVERY = 3.5;           // seconds between blinks
+function postureFor(pose) {
+  if (pose.lying) return "hurt";
+  if (pose.climbing) return "climb";
+  if (pose.airborne) return "leap";
+  if (pose.swimming) return "swim";
+  if (pose.flinch) return "flinch";
+  if (pose.eating > 0) return "eat";
+  if (pose.moving) return pose.running ? "run" : "walk";
+  if (pose.crouch) return "crouch";
+  if ((pose.idle || 0) >= 15) return "lie";
+  if ((pose.idle || 0) >= 5) return "sit";
+  return "stand";
+}
+
 // Move and animate a cat model.
 // pose: { x, y, z, heading, size, moving, running, walk, crouch, attack, climbing, swimming, lying,
-//         fighting, turnVel, carrying, dropping, hurt }
+//         fighting, turnVel, carrying, dropping, hurt, idle, airborne, eating, limp, flinch }
 function poseCat(model, pose, t) {
   const parts = model.userData;
+  const posture = postureFor(pose);
+  const walk = pose.walk || 0;
+  // A different moment for each cat to blink and twitch, so they don't all do it together
+  const offset = Math.abs(pose.x * 7.3 + pose.z * 3.1) % BLINK_EVERY;
+  parts.posture = posture;
+  parts.limp = !!pose.limp;
+
   model.position.set(pose.x, pose.y, pose.z);
   model.rotation.y = pose.heading;
   model.rotation.x = pose.climbing ? -1.25 : 0;
   model.rotation.z = pose.lying ? 1.3 : 0;
   model.scale.setScalar(pose.size);
-  parts.body.position.y = pose.crouch ? -0.1 : (pose.moving ? Math.abs(Math.sin(pose.walk || 0)) * 0.03 : 0);
+
+  // Body: crouching, bobbing, sitting up, lying down, flinching, limping
+  parts.body.rotation.set(0, 0, 0);
+  parts.body.position.y = pose.crouch ? -0.1 : (pose.moving ? Math.abs(Math.sin(walk)) * (pose.running ? 0.06 : 0.03) : 0);
+  if (posture === "sit") parts.body.rotation.x = -0.45;
+  if (posture === "lie") parts.body.position.y = -0.22;
+  if (posture === "flinch") parts.body.rotation.x = -0.3;
+  if (pose.limp && pose.moving) parts.body.rotation.z = Math.sin(walk) * 0.08;
+
+  // Breathing and blinking (R46)
+  parts.torso.scale.set(parts.torsoScale.x, parts.torsoScale.y * (1 + 0.03 * Math.sin(t * 2.2 + offset)), parts.torsoScale.z);
+  const blinking = (t + offset) % BLINK_EVERY < 0.12;
+  parts.eyes.forEach((e) => e.scale.set(parts.eyeScale.x, parts.eyeScale.y * (blinking ? 0.15 : 1), parts.eyeScale.z));
+  const twitch = (t + offset * 2) % 4.3 < 0.15 ? 0.35 : 0;
+  parts.ears.forEach((ear, i) => { ear.rotation.z = (i ? -0.25 : 0.25) + (i ? -twitch : 0); });
+
+  // Legs
   parts.legs.forEach((leg, i) => {
-    leg.rotation.x = pose.moving ? Math.sin((pose.walk || 0) + leg.userData.phase) * 0.6 : 0;
-    if (pose.attack && i === 1) leg.rotation.x = -1.3;   // swipe with a front paw
+    const front = i < 2;
+    let x = 0;
+    if (posture === "run") {
+      x = Math.sin(walk + [0, 0.3, Math.PI, Math.PI + 0.3][i]) * 0.9;   // gallop: front pair, then back pair
+    } else if (posture === "walk") {
+      const amount = pose.limp && i === 3 ? 0.2 : 0.6;                   // a limping cat favours one back leg
+      x = Math.sin(walk + leg.userData.phase) * amount;
+    } else if (posture === "leap") {
+      x = front ? -0.9 : 0.9;                                           // stretched out in the air
+    } else if (posture === "swim") {
+      x = Math.sin(t * 8 + leg.userData.phase) * 0.5;                   // paddling
+    } else if (posture === "sit") {
+      x = front ? 0.25 : 1.3;
+    } else if (posture === "lie") {
+      x = front ? -1.4 : 1.4;
+    }
+    if (pose.attack && i === 1) x = -1.3;   // swipe with a front paw
+    leg.rotation.x = x;
   });
+
   poseTail(model, pose, t);
-  // Head held a little higher while carrying prey, and dipped while dropping it (R27)
-  parts.head.rotation.x = pose.carrying ? -0.25 : (pose.dropping > 0 ? 0.5 * pose.dropping / DROP_TIME : 0);
+
+  // Head: held higher while carrying (R27), dipped when dropping, down and chewing when eating (R46),
+  // looking around when idle (R46)
+  if (pose.carrying) parts.head.rotation.x = -0.25;
+  else if (pose.dropping > 0) parts.head.rotation.x = 0.5 * pose.dropping / DROP_TIME;
+  else if (posture === "eat") parts.head.rotation.x = 0.6 + Math.sin(t * 12) * 0.08;
+  else parts.head.rotation.x = 0;
+  const idleLook = (pose.idle || 0) >= 2 && ["stand", "sit", "lie"].includes(posture);
+  parts.head.rotation.y = idleLook ? Math.sin(t * 0.5 + offset) * 0.5 : 0;
+
   for (const kind in parts.carryModels) parts.carryModels[kind].visible = pose.carrying === kind;
   parts.hurt.visible = !!pose.hurt;
   parts.hurt.rotation.y = t * 2;
@@ -332,18 +399,69 @@ function makeMouseModel() {
   return m;
 }
 
+// R35: a fish with a tapered body (thick at the head, thin at the tail), fins and speckles
 function makeFishModel() {
-  const silver = new THREE.MeshPhongMaterial({ color: "#b8c4cc", shininess: 90 });
   const f = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), silver);
-  body.scale.set(0.04, 0.06, 0.14);
+  // The body is a lathe shape: a profile turned around its long axis
+  const profile = [];
+  for (let i = 0; i <= 12; i++) {
+    const s = i / 12;                                   // 0 = nose, 1 = tail
+    const r = Math.sin(Math.PI * Math.pow(s, 0.7)) * 0.05 * (1 - s * 0.6) + 0.004;
+    profile.push(new THREE.Vector2(r, (0.5 - s) * 0.3));
+  }
+  const bodyGeo = new THREE.LatheGeometry(profile, 12);
+  bodyGeo.rotateX(Math.PI / 2);   // nose points +z
+  const skin = new THREE.MeshPhongMaterial({ color: "#8a9a6a", shininess: 80, specular: "#cfd8e0" });
+  const body = new THREE.Mesh(bodyGeo, skin);
+  body.scale.set(0.8, 1.15, 1);   // flatter from side to side
   body.position.y = 0.06;
   f.add(body);
-  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.07, 3), silver);
-  fin.rotation.x = Math.PI / 2;
-  fin.position.set(0, 0.06, -0.16);
-  f.add(fin);
-  f.userData.tail = fin;
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), new THREE.MeshPhongMaterial({ color: "#e8e4d8", shininess: 60 }));
+  belly.scale.set(0.03, 0.025, 0.09);
+  belly.position.set(0, 0.035, 0.02);
+  f.add(belly);
+  const finMat = new THREE.MeshPhongMaterial({ color: "#6a7a5a", side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+  // Tail fin: a forked triangle at the back
+  const tailShape = new THREE.Shape();
+  tailShape.moveTo(0, 0);
+  tailShape.lineTo(0.06, -0.08);
+  tailShape.lineTo(0.02, 0);
+  tailShape.lineTo(0.06, 0.08);
+  tailShape.lineTo(0, 0);
+  const tailFin = new THREE.Mesh(new THREE.ShapeGeometry(tailShape), finMat);
+  tailFin.rotation.y = Math.PI / 2;
+  tailFin.position.set(0, 0.06, -0.15);
+  f.add(tailFin);
+  // Back fin on top, and a fin on each side behind the head
+  const dorsalFin = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.05, 3), finMat);
+  dorsalFin.scale.set(0.3, 1, 1.6);
+  dorsalFin.position.set(0, 0.115, -0.01);
+  f.add(dorsalFin);
+  const pectoralFins = [-1, 1].map((side) => {
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.04, 3), finMat);
+    fin.rotation.z = side * 1.2;
+    fin.position.set(side * 0.04, 0.045, 0.06);
+    f.add(fin);
+    return fin;
+  });
+  // Speckles along the back and sides
+  const speckMat = mat("#3a4630");
+  const speckles = [];
+  for (let i = 0; i < 10; i++) {
+    const z = 0.1 - i * 0.022;
+    const side = i % 2 ? 1 : -1;
+    const speck = new THREE.Mesh(new THREE.SphereGeometry(0.006, 4, 3), speckMat);
+    speck.position.set(side * 0.03, 0.085 - (i % 3) * 0.01, z);
+    f.add(speck);
+    speckles.push(speck);
+  }
+  // An eye on each side
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 4), mat("#111111"));
+    eye.position.set(side * 0.03, 0.07, 0.11);
+    f.add(eye);
+  }
+  f.userData = { tail: tailFin, body, tailFin, dorsalFin, pectoralFins, speckles };
   return f;
 }
 
@@ -458,6 +576,7 @@ function makeGrass(random) {
     uCamps: { value: Object.keys(CLANS).map((c) => new THREE.Vector2(campOf(c).x, campOf(c).z)) },
     uCampRadius: { value: GRASS_CAMP_RADIUS },
     uWorldHalf: { value: WORLD_HALF },
+    uWind: { value: 1 },
   };
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   material.userData.wind = true;
@@ -472,6 +591,7 @@ function makeGrass(random) {
       uniform vec2 uCamps[4];
       uniform float uCampRadius;
       uniform float uWorldHalf;
+      uniform float uWind;
       // Where this blade stands: its spot in the square, moved to the square around the cat
       vec2 grassBase() {
         vec2 o = vec2(instanceMatrix[3][0], instanceMatrix[3][2]);
@@ -499,7 +619,7 @@ function makeGrass(random) {
         // Wind: slow waves across the field plus a quick flutter; the tip moves most
         float h = position.y * position.y;
         float wave = sin(uTime * 1.6 + gb.x * 0.15 + gb.y * 0.1) * 0.35 + sin(uTime * 3.1 + gb.x * 1.7 + gb.y * 1.3) * 0.08;
-        mvPosition.xz += vec2(0.8, 0.45) * wave * h * 0.35;
+        mvPosition.xz += vec2(0.8, 0.45) * wave * h * 0.35 * uWind;
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;
       `);
@@ -591,7 +711,7 @@ function buildScene() {
   }
 
   // The river and the stream
-  const waterMat = new THREE.MeshPhongMaterial({ color: "#3f7fb8", shininess: 80, transparent: true, opacity: 0.9 });
+  const waterMat = new THREE.MeshPhongMaterial({ color: "#3f7fb8", shininess: 80, transparent: true, opacity: 0.65 });   // see the fish (R35)
   for (const w of WATERS) {
     const water = new THREE.Mesh(new THREE.PlaneGeometry(w.x1 - w.x0, WORLD_HALF * 2), waterMat);
     water.rotation.x = -Math.PI / 2;
@@ -776,9 +896,44 @@ function buildScene() {
   scentDots.visible = false;
   scene.add(scentDots);
 
+  // Kits (R31)
+  const kitModels = kits.map((k) => { const m = makeCatModel(k.look); scene.add(m); return m; });
+
+  // Rain (R30): short falling streaks around the camera (each streak is a top and a bottom point)
+  const rainCount = 1500;
+  const rainGeo = new THREE.BufferGeometry();
+  const rainPos = new Float32Array(rainCount * 6);
+  for (let i = 0; i < rainCount; i++) {
+    const x = (random() - 0.5) * 40;
+    const y = random() * 20;
+    const z = (random() - 0.5) * 40;
+    rainPos.set([x, y, z, x + 0.05, y - 0.45, z], i * 6);
+  }
+  rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: "#b8cce0", transparent: true, opacity: 0.55 }));
+  rain.frustumCulled = false;
+  rain.visible = false;
+  scene.add(rain);
+
+  // Fish swimming under the water while fishing (R35), and a ripple where the paw reaches
+  const fishModels = [];
+  for (let i = 0; i < FISH_COUNT; i++) {
+    const m = makeFishModel();
+    m.scale.setScalar(2.4);
+    m.visible = false;
+    scene.add(m);
+    fishModels.push(m);
+  }
+  const ripple = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 24),
+    new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+  ripple.rotation.x = -Math.PI / 2;
+  ripple.visible = false;
+  scene.add(ripple);
+
   Object.assign(view, {
     scene, hemi, sun, sunBall, moonBall, stars, treeTops, grass, grassUniforms, herbModels, denModels, pileModel,
-    playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels,
+    playerModel, playerShadow, rogueModel, rogueShadow, squirrelModel, campCatModels, patrolModels, kitModels,
+    rain, fishModels, ripple, lightningFlash: 0,
     preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
   });
 }
@@ -806,6 +961,14 @@ function updateSky() {
   const place = PLACES[biomeAt(player.x, player.z)];
   view.scene.fog.near = player.scenting ? 8 : place.fogNear;
   view.scene.fog.far = player.scenting ? 45 : place.fogFar;
+  // R30: thick fog in foggy weather, and it closes in a little in rain and storms; rain darkens the sky
+  const weatherFog = { clear: 1, wind: 1, rain: 0.7, storm: 0.5, fog: 0.25 }[weather];
+  view.scene.fog.near *= weatherFog;
+  view.scene.fog.far *= weatherFog;
+  if (weather === "rain" || weather === "storm") {
+    sky.multiplyScalar(weather === "storm" ? 0.55 : 0.75);
+    view.scene.fog.color.copy(sky);
+  }
 
   // The sun goes around from east (+x) to west (-x)
   const angle = (f - 0.25) * Math.PI * 2;
@@ -829,7 +992,8 @@ function updateTreesAndGrass(t, centre) {
   for (const top of view.treeTops) {
     if (Math.abs(top.position.x - centre.x) > 80 || Math.abs(top.position.z - centre.z) > 80) continue;
     const p = top.userData.phase;
-    top.rotation.z = Math.sin(t * 1.3 + p) * 0.03;
+    const gust = weather === "wind" ? 3 : (weather === "storm" ? 2.5 : 1);   // R30
+    top.rotation.z = Math.sin(t * 1.3 * gust + p) * 0.03 * gust;
     top.rotation.x = Math.sin(t * 1.1 + p * 2) * 0.02;
     for (const leaves of top.children) {
       if (!leaves.userData.base) continue;
@@ -852,6 +1016,9 @@ function playerPose(size, t) {
     attack: player.attackTimer > 0, climbing: !!player.climbing, swimming,
     fighting: fightingEnemies().some((e) => distance(e, player) < 6), turnVel: player.turnVel,
     carrying: player.carrying, dropping: player.dropTimer,
+    // R46: still time, leaping, eating, limping when hurt, flinching when hit
+    idle: player.idleTime, airborne: !player.onGround && !player.climbing, eating: player.eatTimer,
+    limp: player.hp < LOW_HEALTH, flinch: player.hurtTimer > 0,
   };
 }
 
@@ -1000,6 +1167,69 @@ function updateCamp() {
   });
 }
 
+// R31: kits play (chase, pounce, tumble, wander); the deputy's apprentice grows bigger
+function updateKitModels(t) {
+  kits.forEach((k, i) => {
+    const model = view.kitModels[i];
+    if (!model) return;
+    const pounce = k.activity === "pounce" && k.moving;
+    poseCat(model, {
+      x: k.x, y: pounce ? Math.abs(Math.sin(t * 6 + i)) * 0.25 : 0, z: k.z, heading: k.heading, size: k.size,
+      moving: k.moving, running: k.activity === "chase", walk: k.walk, airborne: pounce && Math.sin(t * 6 + i) > 0.3,
+      crouch: k.activity === "pounce" && !k.moving,
+    }, t);
+    // Tumbling: roll over on the spot
+    if (k.activity === "tumble") model.rotation.z = Math.sin(t * 5 + i) * 1.2;
+    model.visible = playing;
+  });
+}
+
+// R30: rain falls around the camera; lightning flashes in a storm; wind makes plants sway more
+const LIGHTNING_EVERY = 5;
+function updateWeatherView(t, cam) {
+  const wet = weather === "rain" || weather === "storm";
+  view.rain.visible = wet;
+  if (wet) {
+    const pos = view.rain.geometry.attributes.position;
+    const fall = weather === "storm" ? 16 : 10;
+    for (let i = 0; i < pos.count; i += 2) {
+      let y = pos.getY(i) - fall / 60;
+      if (y < 0) y += 20;
+      pos.setY(i, y);
+      pos.setY(i + 1, y - 0.45);
+    }
+    pos.needsUpdate = true;
+    view.rain.position.set(cam.x, 0, cam.z);
+    view.rain.material.opacity = weather === "storm" ? 0.75 : 0.55;
+  }
+  view.lightningFlash = weather === "storm" && t % LIGHTNING_EVERY < 0.2 ? 1 : 0;
+  if (view.lightningFlash) {
+    view.scene.background = new THREE.Color("#d8e0ff");
+    view.hemi.intensity = 1.6;
+  }
+  view.grassUniforms.uWind.value = weather === "wind" ? 2.2 : (weather === "storm" ? 1.8 : 1);
+}
+
+// R35: while fishing, fish are drawn swimming under the water, with a ripple where the paw reaches
+function updateFishingView(t) {
+  view.fishModels.forEach((m, i) => {
+    const f = fishing.active ? fishing.fish[i] : null;
+    m.visible = !!f;
+    if (!f) return;
+    m.position.set(f.x, -0.06, f.z);   // just under the surface
+    m.rotation.y = f.heading;
+    m.userData.tailFin.rotation.y = Math.PI / 2 + Math.sin(t * (f.dart > 0 ? 20 : 8) + i) * 0.4;   // tail swish
+  });
+  view.ripple.visible = fishing.active;
+  if (fishing.active) {
+    const paw = pawSpot();
+    view.ripple.position.set(paw.x, 0.06, paw.z);
+    const s = 1 + (t * 1.5 % 1) * 0.6;
+    view.ripple.scale.set(s * pawReach() / PAW_REACH, s * pawReach() / PAW_REACH, 1);
+    view.ripple.material.color.set(fishing.flash > 0 ? (fishing.flashGood ? "#7ddc6a" : "#e05a4a") : "#ffffff");
+  }
+}
+
 // R21: on the title screen the camera slowly circles the camp
 function titleCamera(t) {
   const a = t * 0.1;
@@ -1010,7 +1240,7 @@ function renderFrame() {
   if (!view) return;
   if (view.builtFor !== clanName || view.campCatModels.length !== campCats.length ||
       view.patrolModels.length !== patrols.length || view.herbModels.length !== herbs.length ||
-      view.builtLook !== JSON.stringify(look)) {
+      view.kitModels.length !== kits.length || view.builtLook !== JSON.stringify(look)) {
     buildScene();   // a new game with a different clan or cat
   }
   const t = time;
@@ -1021,6 +1251,9 @@ function renderFrame() {
   updateCritters(t);
   updateScent(t);
   updateCamp();
+  updateKitModels(t);
+  updateWeatherView(t, cam);
+  updateFishingView(t);
 
   // R11/R12/R25: the camera sits low and close behind the cat (inside a hut when you are)
   view.camera.position.set(cam.x, cam.y, cam.z);
