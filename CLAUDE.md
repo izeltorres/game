@@ -46,6 +46,8 @@ Test after a change.
 - After teleporting the cat or setting its `heading`, call `snapCamera()` before checking the camera.
 - Call `step(0.5)` before a check that must start from walking: a W tap less than 0.3 s after the
   last one starts a run.
+- Kits can't leave their camp. A check that needs to move around outside the camp must start as an
+  apprentice or older (`freshApprentice()`, `freshWithRole()`).
 - All checks, including earlier rounds', must pass before the work is done.
 - Run the full suite at least twice before finishing. Cats and prey move randomly, so a check can pass
   once and still be flaky.
@@ -56,8 +58,9 @@ Test after a change.
   PROFILE="$(cygpath -w "$TEMP/edge-test-profile")"
   "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new \
     --enable-unsafe-swiftshader --use-angle=swiftshader --no-first-run "--user-data-dir=$PROFILE" \
-    --virtual-time-budget=60000 --dump-dom "file:///$(cygpath -w "$PWD/tests.html")" 2>/dev/null \
+    --virtual-time-budget=120000 --dump-dom "file:///$(cygpath -w "$PWD/tests.html")" 2>/dev/null \
     | grep -oE '<h2 id="summary"[^>]*>[^<]*|<li class="fail">[^<]*' | sed -E 's/<[^>]*>//'
   ```
 
   It prints the summary line (`ALL N TESTS PASSED`, or how many failed) and each failing check.
+  A full run takes a few minutes, so give the command a long timeout (or run it in the background).
