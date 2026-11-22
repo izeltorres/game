@@ -92,3 +92,16 @@
 - R59: the river gets flowing water, banks and stones, depth, and life in the river.
 - R60: textures for ground, trees and rocks, cat fur, and huts and water.
 - R65, R67, R68: the proposed defaults for the pile, markers and trees.
+
+## Session 8 (2026-11-22) - Round 7
+
+- Build Round 7 (R70–R77 from `problem.md`, after the owner renumbered the second R75 as R77).
+- The three items settled after Round 5 are renumbered R69a–R69c in `spec.md` and the tests, so
+  Round 7 can use R70–R72.
+- R70: nametags for your mentor, your apprentice, every leader and every medicine cat.
+- R70/R71: no deputy cats are added; your cat curls up when sleeping in your den.
+- R73: on a branch you lie along it, and it counts as up in the tree (safe and a lookout).
+- R74: the big river winds; the stream stays straight; the borders don't change.
+- R75: calling for help brings a clan patrol, at any rank.
+- R76: two rainy seasons (newleaf and leaf-fall).
+- R77: rogue packs are tougher and come half as often.

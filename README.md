@@ -38,9 +38,10 @@ The camera sits low and close behind your cat and swings round smoothly when you
 | R | Bite (warriors and older, or apprentices with the fighter mentor) |
 | Esc | Main menu: Resume, Restart (same cat, start over as a kit), New cat. While fishing, Esc stops fishing |
 | G | Drop the prey you are carrying (at the fresh-kill pile it goes onto the pile; pick it up again with E) |
-| Walk into a tree | Climb it. High up you can see far (prey and enemies are marked, also on the map), and most enemies can't reach you. Press E to catch a sparrow perched at your height |
+| Walk into a tree | Climb it. Press E at a branch to lie along it (also safe from enemies). High up you can see far (prey and enemies are marked, also on the map), and most enemies can't reach you. Press E to catch a sparrow perched at your height |
 | 1 / 2 / 3 / 4 | Leader only, with the pouch closed: order clanmates to Follow, Hunt, Guard, or go on a Big hunt |
 | Click | Pick the herb under the aiming dot in the middle of the screen |
+| V | Call a patrol of your clan's warriors to help when a rogue pack attacks you (once a minute) |
 
 ### The world
 
@@ -64,14 +65,15 @@ The world is split into 4 clan territories. Press **M** to see the map.
   nursery when you come near. Your kits come up to you once you are an apprentice; press E to play a pounce game.
 - Cats are solid: you can't walk through them. Camp cats groom, greet, share prey and argue with each other, and
   walk to the fresh-kill pile to eat when they are hungry. Every clan's **leader** stands by its Highrock.
-- **The river** flows south: in deep water the current carries you along. You wade (slower, no current) in the
+- **The river** winds through WindClan and RiverClan land and flows south: in deep water the current carries you along. You wade (slower, no current) in the
   shallows along the banks, and stepping stones cross both waters.
 - **Rogues:** after your apprenticeship they come in packs of 2–3 that roam your territory, hunt you, circle and
-  sidestep in a fight, and raid your camp if nobody chases them off. Beat the leader and the whole pack runs.
+  sidestep in a fight, and raid your camp if nobody chases them off. They are tough (the leader has 130 health), so
+  press V to call your clan's warriors to help. Beat the leader and the whole pack runs.
 - Your camp has five huts you can walk into through their doorways (the nursery, the apprentices' den,
   the warriors' den, the medicine den and the leader's den in front of the Highrock), and a fresh-kill pile.
   Trees, rocks and hut walls are solid.
-  - Press E inside **your own** den to sleep: you heal fully and wake up the next morning.
+  - Press E inside **your own** den to sleep: your cat curls up in its nest, then wakes up the next morning fully healed.
   - Press E at the fresh-kill pile to drop off prey you carry, or to eat if you are hungry. The pile shows the real
     prey on it, and prey older than a day is cleared away.
 
@@ -99,8 +101,9 @@ The world is split into 4 clan territories. Press **M** to see the map.
   2 for dock leaf (heals 15).
 - With no food, health slowly drops. At zero health your cat faints and wakes up at camp, keeping its progress.
 - A full day and night lasts **one real hour**, with sunrise, sunset and a starry night.
-- **Seasons** change every 30 game days: newleaf, greenleaf (prey comes back twice as fast, more clear days and
-  storms), leaf-fall (more rain and wind, lots of falling leaves) and leaf-bare (snow, half the prey, no storms).
+- **Seasons** change every 30 game days: newleaf (rainy), greenleaf (dry; prey comes back twice as fast, the odd
+  storm), leaf-fall (rainy and windy, lots of falling leaves) and leaf-bare (snow, half the prey, no rain).
+- Important cats (your mentor, your apprentice, the leaders and medicine cats) have small nametags.
 - **Weather** changes every few minutes: clear, rain (only half the prey comes out, scent is weaker), fog (prey notices
   you less), wind (scent carries further) or a thunderstorm (all prey hides and other clans' patrols stay home).
 - **Fishing:** press E by the water. Fish swim under the surface; press E when one is under your paw (the ripple).
@@ -111,7 +114,7 @@ The world is split into 4 clan territories. Press **M** to see the map.
 | Rank | What to do | Reward |
 | --- | --- | --- |
 | Kit | Stay in camp and catch 5 beetles and 3 mice there (stalk mice with Shift). You grow with every catch. Camp prey is slow and easy to sneak up on. | Become an apprentice (*-paw*) and choose a mentor |
-| Apprentice | Do your mentor's tasks; your mentor leads the way: walk the border (3 glowing markers; the next one glows brightest), hunt a squirrel, climb a tree, catch 3 fish, chase off a rogue. Your mentor shows you how, and E next to them repeats the task with a tip. | Choose a path: Warrior or Medicine cat. The clan leader gives you your warrior name |
+| Apprentice | Do your mentor's tasks; your mentor leads the way: walk the border (3 glowing patches on the ground; the next one glows brightest), hunt a squirrel, climb a tree, catch 3 fish, chase off a rogue. Your mentor shows you how, and E next to them repeats the task with a tip. | Choose a path: Warrior or Medicine cat. The clan leader gives you your warrior name |
 | Warrior | Catch 5 prey (mice, squirrels, fish), win 3 fights (rogues or other clans' cats) and walk a border patrol. | Become Deputy |
 | Deputy | Catch 3 prey, win 2 fights, train one of the camp's kits as your apprentice (a hunting lesson, battle practice, a border patrol together), and complete a mission outside your territory: carry a message to another camp, take back stolen prey, or find a lost kit. | Become Leader (*-star*) with nine lives |
 | Medicine cat | Start as Thymeleaf's apprentice. Collect the herbs Thymeleaf asks for and put them in the medicine den's store (E inside the den), and heal hurt clanmates (E next to them, with herbs in your pouch). | Medicine cat, then senior medicine cat (never leader) |
@@ -151,7 +154,7 @@ The world is split into 4 clan territories. Press **M** to see the map.
 - `script.js`: keyboard, menu, HUD, map, herb pouch and main loop.
 - `sound.js`: music, background sounds and cat noises, all made in the browser (Web Audio).
 - `tests.html`: automatic tests. Open it in a browser; it plays through the game and lists PASS/FAIL
-  for each check, each named with its requirement ID (R1–R72).
+  for each check, each named with its requirement ID (R1–R77).
 - `problem.md`, `spec.md`: what the game should be.
 - `decision.md`, `docs/decisions/`, `handoff.md`, `handoff-round-N.md`: project notes and decision records.
 
