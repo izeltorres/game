@@ -2,7 +2,7 @@ spec.md
 
 # spec: warrior cats inspired themed game
 
-Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29 and Round 4 requirements R30–R46; there is no R33 or R34).
+Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34) and Round 5 requirements R47–R57).
 
 ## Purpose
 A rbg game that allows you play as a 3rd perspective account.
@@ -391,3 +391,112 @@ from R9 changes as described in R43.
   - The cat lowers its head and chews when it eats.
   - It limps when its health is low (under 30).
   - It flinches when it is hit.
+
+## Round 5
+
+### R47. Prey of different sizes, and the big hunt
+- New prey, from small to big. Bigger prey gives more food, notices you from further away and runs faster:
+
+  | Prey | Size | Food | Where |
+  | --- | --- | --- | --- |
+  | Beetle | tiny | 8 | camp (kits) and territory |
+  | Mouse | small | 20 | camp (kits) and territory |
+  | Vole | small | 18 | territory |
+  | Sparrow | small | 15 | territory |
+  | Squirrel | medium | 40 | territory |
+  | Rabbit | medium | 45 | territory |
+  | Hare | big | 70 | only on a big hunt |
+
+- All of them except beetles count as prey toward promotions.
+- **Big hunt (leader order 4):**
+  - A hare appears in your territory, and your 3 clanmates go to surround it, one on each side, leaving
+    the side toward you open.
+  - While it is surrounded (all 3 clanmates within 5 units of it), it can't run away, so you can walk up
+    and catch it.
+  - A hare that isn't surrounded runs like other prey.
+  - Catching it puts 4 pieces on the fresh-kill pile.
+
+### R48. Gatherings
+- About every 15 minutes the leader is told that tonight is the full-moon **Gathering** at the
+  Great Oak, in the middle of the world where the four territories meet. The call stays open for 5 minutes.
+- The Great Oak is a giant tree, and there is a **truce** around it: within 25 units, no cat attacks.
+- When the leader arrives, the other three clans' leaders are there and each shares news.
+- Then the player gives a speech (the game waits):
+  - **Speak of peace:** every rivalry −15.
+  - **Boast of your clan's strength:** every rivalry +10, but your clanmates get bolder (your fresh-kill pile +2).
+  - **Warn one clan off your border:** that clan +15, the others −5.
+
+### R49. Deputy missions
+- A deputy is sent on missions outside the territory, one at a time. A new mission comes 30 seconds
+  after the last one is done. They come in this order and then repeat:
+  1. **Carry a message** to another clan's camp. That clan's cats let you pass while you carry it.
+     Reaching their camp delivers it.
+  2. **Recover stolen prey:** a rival has taken a rabbit. It lies in their territory: pick it up with E
+     and bring it to your fresh-kill pile (+1 piece). Their cats attack as usual, and their rivalry rises by 5.
+  3. **Find a lost kit:** one of your kits has wandered into another clan's land. Find it and press E;
+     it follows you, and bringing it into camp completes the mission.
+- **Deputy → leader now also needs 1 mission** (with 3 prey, 2 fights and a trained apprentice).
+
+### R50. A leader's big decisions
+- About every 5 minutes something happens to the clan, and the leader chooses what to do (the game waits).
+  Each choice changes things for the whole clan:
+
+  | Event | Choices |
+  | --- | --- |
+  | Sickness in camp | Send cats out for herbs (herb store +2, fresh-kill −1) · Rest and wait (2 camp cats get hurt) |
+  | A stray kit at the border | Take it in (a new kit in camp, fresh-kill −1) · Send it away (nothing) |
+  | A rival steals prey | Raid their camp (fresh-kill +2, that clan's rivalry +20) · Let it go (fresh-kill −2) · Complain at the Gathering (that clan's rivalry −5) |
+  | Prey is scarce | Send extra hunting patrols (fresh-kill +2, a camp cat gets hurt) · Share what we have (nothing changes) |
+
+### R51. Prey can't swim
+- No prey ever goes into the water: frightened prey runs along the bank instead, and prey never appears in water.
+
+### R52. Every camp has a medicine cat
+- Each clan's camp has a medicine cat who lives by the medicine den.
+- Yours (Thymeleaf) heals you to full health when you press E next to them (once a minute).
+- Thymeleaf treats a hurt camp cat once it has been hurt for 30 seconds, using an herb from the herb
+  store if there is one.
+- If you choose the medicine cat path, Thymeleaf is your senior and gives you your medicine tasks (R57).
+
+### R53. Click to pick herbs
+- A small aiming dot sits in the middle of the screen. An herb you aim at (within 3.5 units) glows,
+  and clicking picks it into your pouch. This works whether or not the mouse is captured (R32).
+
+### R54. Rivalries
+- Each other clan has a **rivalry** with yours, from 0 to 100. It starts at 30 and is shown on the map.
+- **Rises:**
+  - +5 for each of their cats you beat.
+  - +1 for every 10 seconds you spend in their territory.
+  - +5 when you take back stolen prey.
+  - Decisions (R50).
+- **Falls:** Gathering speeches and decisions.
+- **Effects:**
+  - **Below 20 (friendly):** their cats warn you off instead of attacking.
+  - **20 to 69:** as before.
+  - **70 and above (hostile):** their cats see you from 20 units away. Every 4 minutes, 2 of their cats
+    raid your camp: they take a piece from the fresh-kill pile and fight you if you are near.
+
+### R55. A bigger play screen
+- The game fills the whole browser window and adjusts when the window changes size.
+- The list of controls moves into the main menu (Esc).
+
+### R56. Easier hunting for kits
+- Prey in camp is slower (×0.6) and less wary (it notices a kit at half the usual distance).
+
+### R57. More for medicine cats
+- Medicine cats have ranks: **medicine cat apprentice** → **medicine cat** → **senior medicine cat**.
+  Choosing the medicine path (R43) starts you as a medicine cat apprentice.
+- The medicine den has a **herb store**. Inside the medicine den, press E to move the herbs from
+  your pouch into it.
+- Tasks, given by Thymeleaf:
+  - **Herb collecting quests:** collect a set of herbs (e.g. 3 marigold and 2 dock) and put them in the store.
+  - **Treat clanmates:** heal hurt camp cats.
+  - **Keep the store stocked.**
+- **Apprentice → medicine cat:** 1 collecting quest and 2 clanmates treated.
+- **Medicine cat → senior medicine cat:** 1 more collecting quest, 3 more clanmates treated, and 6
+  herbs in the store.
+- Medicine cats still never become leader.
+
+### Controls (Round 5)
+4: big hunt (leader). Click: pick the herb you aim at. All other keys are as in Round 4; the
+controls list is in the Esc menu.
