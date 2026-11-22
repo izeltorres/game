@@ -1211,6 +1211,7 @@ function doAction() {
   else if (trySparring()) return;
   else if (tryInteract()) return;
   else if (preyInReach()) catchPrey(preyInReach());
+  else if (tryTalk()) return;
   else if (stage >= 1 && nearRiver(player.x)) tryFishing();
   else if (currentTask() === "fish") say("Find the river or the stream in your territory first.", 1.5);
   else if (stage === 0) pounceMiss();
@@ -2532,13 +2533,6 @@ function tryInteract() {
     say(`You pick up the ${lying.kind}.`, 1.5);
     return true;
   }
-  // R58: talk to your mentor: hear the task again, with a tip
-  const m = mentorCat();
-  if (m && stage === 1 && currentTask() && distance(player, m) < 2) {
-    playSound("meow");
-    say(`${m.name}: ${TASK_TEXT[currentTask()]} ${TIPS[currentTask()]}`, 5);
-    return true;
-  }
   // R49: take back the stolen rabbit, or find the lost kit
   if (mission && mission.type === "stolen" && !mission.carried && stolenPrey && distance(player, stolenPrey) < 1.5 && !player.carrying) {
     mission.carried = true;
@@ -2593,7 +2587,19 @@ function tryInteract() {
     useDen(den);
     return true;
   }
-  return trySocial();   // R63: share tongues with a clanmate, or play with a kit
+  return false;
+}
+
+// E facing another cat (after catching prey, so it never gets in the way of hunting):
+// R58 talk to your mentor (the task again, with a tip); R63 share tongues or play with a kit
+function tryTalk() {
+  const m = mentorCat();
+  if (m && stage === 1 && currentTask() && inFront(player, player.heading, m, 2, 0.5)) {
+    playSound("meow");
+    say(`${m.name}: ${TASK_TEXT[currentTask()]} ${TIPS[currentTask()]}`, 5);
+    return true;
+  }
+  return trySocial();
 }
 
 // G: drop the prey you carry (R27). At the fresh-kill pile it goes onto the pile.
