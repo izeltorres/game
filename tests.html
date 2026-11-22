@@ -58,6 +58,7 @@
     <div id="main-menu" class="hidden">
       <h2 id="main-menu-title">Paused</h2>
       <button data-action="resume">Resume</button>
+      <button data-action="save">Save</button>
       <button data-action="restart">Restart</button>
       <button data-action="newcat">New cat</button>
       <label class="volume">Volume <input id="volume" type="range" min="0" max="1" step="0.05" value="0.6"></label>
@@ -81,6 +82,8 @@
       <canvas id="preview" width="260" height="200"></canvas>
       <p id="preview-name"></p>
       <button id="start-btn">Start</button>
+      <div id="saves"></div>
+      <div id="replace-slot" class="hidden"><p>All 3 save slots are full. Replace which cat?</p><div id="replace-options"></div><button id="replace-cancel">Cancel</button></div>
     </div>
   </div>
 
@@ -525,9 +528,9 @@
           return dist2d(theMentor(), CAMP) < 9;
         });
         check("R4", "rogue runs away", () => rogue.state === "gone" || (step(5), rogue.state === "gone"));
-        check("R9", "a new rogue appears some time after the last one is chased off: now a roaming pack (R62)", () => {
+        check("R9", "a new rogue appears some time after the last one is chased off: a single roaming rogue for a warrior (R83)", () => {
           step(ROGUE_RESPAWN + 1);   // (the first pack comes 2 minutes after the apprentice's rogue; later packs wait 4, see R77)
-          return rogue.state === "roaming" && rogue.hp === ROGUE_PACK_HP && rogueMates.length >= 1 && rogueMates.length <= 2;
+          return rogue.state === "roaming" && rogue.hp === ROGUE_SOLO_HP && rogueMates.length === 0;   // a warrior faces one rogue (R83)
         });
         check("R9", "winning fights after choosing a role is counted", () => {
           const before = stats.fights;
@@ -1525,11 +1528,11 @@
         freshWithRole("Warrior", "WindClan");
         catName = "Storm";
         check("R26", "there is no New cat button on the game screen", () => !doc.getElementById("new-cat"));
-        check("R26", "Esc opens the main menu with Resume, Restart and New cat", () => {
+        check("R26", "Esc opens the main menu with Resume, Save (R84), Restart and New cat", () => {
           press("Escape");
           const el = doc.getElementById("main-menu");
           const actions = [...el.querySelectorAll("button")].map((b) => b.dataset.action).join();
-          return ui.menu && !el.classList.contains("hidden") && actions === "resume,restart,newcat";
+          return ui.menu && !el.classList.contains("hidden") && actions === "resume,save,restart,newcat";
         });
         check("R26", "the game is paused while the menu is open", () => {
           const t = dayTime; const z = player.z;
@@ -2006,21 +2009,26 @@
 
         // ---------- R52 a medicine cat in every camp ----------
         freshWithRole("Warrior", "WindClan"); quiet();
-        check("R52", "every camp has a medicine cat by its medicine den", () =>
+        check("R52", "every camp has a medicine cat in its medicine den (R80)", () =>
           Object.keys(CLANS).every((c) => {
             const mc = medicineCats.filter((m) => m.clan === c);
             const den = huts.find((h) => h.clan === c && h.id === "medicine");
-            return mc.length === 1 && dist2d(mc[0], den) < 6;
+            return mc.length === 1 && insideHut(mc[0]) === den;
           }));
         const thyme = () => medicineCats.find((m) => m.clan === clanName);
+        // Stand inside your medicine den facing Thymeleaf (R80: she stays in there)
+        const besideThyme = () => {
+          const m = thyme(); const den = huts.find((h) => h.clan === clanName && h.id === "medicine");
+          const a = Math.atan2(den.x - m.x, den.z - m.z);
+          place(m.x + Math.sin(a) * 1.1, m.z + Math.cos(a) * 1.1); player.heading = a + Math.PI;
+          return m;
+        };
         check("R52", "your medicine cat, Thymeleaf, heals you when you press E next to them", () => {
-          const m = thyme(); player.hp = 30;
-          place(m.x, m.z - 1.2); player.heading = 0; pressE();
+          const m = besideThyme(); player.hp = 30; pressE();
           return m.name === "Thymeleaf" && player.hp === 100;
         });
         check("R52", "...but only once a minute", () => {
-          const m = thyme(); player.hp = 30;
-          place(m.x, m.z - 1.2); pressE();
+          besideThyme(); player.hp = 30; pressE();
           return player.hp === 30;
         });
         check("R52", "Thymeleaf treats a hurt camp cat after it has been hurt for 30 seconds", () => {
@@ -2278,10 +2286,10 @@
           return vol && muted && doc.getElementById("main-menu").contains(v);
         });
 
-        // ---------- R62 rogues are more dangerous ----------
-        freshWithRole("Warrior", "WindClan"); quiet();
+        // ---------- R62 rogues are more dangerous (packs: deputies and leaders since R83) ----------
+        freshWithRole("Deputy", "WindClan"); quiet();
         const spawnPack = () => { rogue.state = "gone"; rogue.respawn = 0; step(0.1); };
-        check("R62", "after the apprenticeship rogues come in packs of 2-3, tougher and harder-hitting", () => {
+        check("R62", "a deputy faces rogue packs of 2-3, tougher and harder-hitting (R83)", () => {
           spawnPack();
           return rogue.state === "roaming" && rogue.smart && rogue.hp === ROGUE_PACK_HP && ROGUE_PACK_HP > ROGUE_HP && rogueMates.every((m) => m.hp === ROGUE_MATE_HP) &&
             rogueMates.length >= 1 && rogueMates.length <= 2 && ROGUE_PACK_DAMAGE > 14;
@@ -2312,14 +2320,15 @@
           player.heading = 0; player.attackCooldown = 0; pressE();
           return rogue.state === "fleeing" && rogueMates.every((m) => m.state === "fleeing");
         });
-        check("R62", "a pack left alone raids your camp: steals fresh-kill and hurts a camp cat", () => {
-          freshWithRole("Warrior", "WindClan"); quiet(); placeAt(-40, -40);
+        check("R79", "a pack left alone raids your camp and steals fresh-kill, but hurts nobody there (changes R62)", () => {
+          freshWithRole("Deputy", "WindClan"); quiet(); placeAt(-40, -40);
           spawnPack();
           campCats.forEach((c) => { c.injured = false; });
+          injuryTimer = 999;   // (no accidental injuries during the check)
           const pile = freshKill;
           rogue.raidClock = ROGUE_RAID_AFTER;
           step(30);
-          return freshKill < pile && campCats.some((c) => c.injured);
+          return freshKill < pile && !campCats.some((c) => c.injured);
         });
 
         // ---------- R63 cats interact ----------
@@ -2579,27 +2588,38 @@
           return !(player.sleeping > 0) && day === 2 && player.hp === 100 && view.playerModel.userData.posture !== "curl";
         });
 
-        // ---------- R73 branches ----------
-        freshWithRole("Warrior", "WindClan"); quiet();
+        // ---------- R73 branches (only ThunderClan reaches them since R82) ----------
+        freshWithRole("Warrior", "ThunderClan"); quiet();
         const branchTree = () => {
           const spot = at(12, -30);
           const t = { x: spot.x, z: spot.z, r: 0.6, h: 14, kind: "oak", phase: 0,
-                      branches: [{ y: 1.8, angle: 0, length: 2.2 }, { y: 4, angle: Math.PI, length: 2 }] };
+                      branches: [{ y: 3.2, angle: 0, length: 2.2 }, { y: 5, angle: Math.PI, length: 2 }] };
           trees.push(t);
           return t;
         };
-        check("R73", "every tree has a branch low enough for every clan (2 units or lower)", () => {
+        const climbTo = (y) => { keys.KeyW = true; for (let i = 0; i < 400 && player.y < y; i++) step(1 / 60); releaseAll(); };
+        check("R82", "branches only start 3 units up (changes R73): every tree has one, all between 3 and 5.5", () => {
           clanName = "WindClan"; resetGame();
-          return trees.length > 20 && trees.every((t) => t.branches && t.branches.length >= 1 && t.branches.some((b) => b.y <= 2));
+          return trees.length > 20 && trees.every((t) => t.branches && t.branches.length >= 1 &&
+            t.branches.every((b) => b.y >= 3 && b.y <= 5.5 && b.y <= t.h - 2));
         });
-        check("R73", "climb to a branch and press E: your cat steps out and lies along it", () => {
+        check("R82", "other clans can't climb high enough to reach a branch", () => {
           freshWithRole("Warrior", "WindClan"); quiet();
           const t = branchTree();
           place(t.x, t.z - 0.6 - 0.45);
-          keys.KeyW = true; step(1.5); releaseAll();   // WindClan climbs to 2 units
+          climbTo(3); pressE();
+          const ok = !player.onBranch && player.y <= CLANS.WindClan.climbHeight + 0.01;
+          keys.KeyS = true; step(3); releaseAll(); trees.pop();
+          return ok;
+        });
+        check("R73", "climb to a branch and press E: your cat steps out and lies along it (ThunderClan)", () => {
+          freshWithRole("Warrior", "ThunderClan"); quiet();
+          const t = branchTree();
+          place(t.x, t.z - 0.6 - 0.45);
+          climbTo(3.2);
           pressE();
           const b = player.onBranch;
-          return b === t.branches[0] && dist2d(player, t) > t.r + 0.5 && Math.abs(player.y - 1.8) < 0.05 && !player.climbing;
+          return b === t.branches[0] && dist2d(player, t) > t.r + 0.5 && Math.abs(player.y - 3.2) < 0.05 && !player.climbing;
         });
         check("R73", "on a branch, rogues can't reach you", () => {
           player.hp = 100;
@@ -2614,18 +2634,15 @@
         });
         check("R73", "press E again to go back to the trunk", () => {
           pressE();
-          return !player.onBranch && player.climbing && Math.abs(player.y - 1.8) < 0.05;
+          return !player.onBranch && player.climbing && Math.abs(player.y - 3.2) < 0.05;
         });
-        check("R73", "from a high branch you can look out (ThunderClan)", () => {
-          freshWithRole("Warrior", "ThunderClan"); quiet();
-          const t = branchTree();
-          place(t.x, t.z - 0.6 - 0.45);
-          keys.KeyW = true; for (let i = 0; i < 300 && player.y < 4; i++) step(1 / 60); releaseAll();
+        check("R73", "from a high branch you can look out", () => {
+          climbTo(5);
           pressE();
-          return player.onBranch === t.branches[1] && lookingOut();
+          return player.onBranch && player.onBranch.y === 5 && lookingOut();
         });
         check("R73", "Space jumps down from a branch", () => {
-          press("Space"); step(2);
+          press("Space"); step(3);
           return !player.onBranch && !player.climbing && player.y === 0;
         });
         check("R73", "branches are drawn on the trees", () => {
@@ -2658,8 +2675,8 @@
             Math.abs(view.riverMesh.userData.middleAt(20) - 38) < 0.3;
         });
 
-        // ---------- R75 call a patrol ----------
-        freshWithRole("Warrior", "WindClan"); quiet();
+        // ---------- R75 call a patrol (packs come for deputies and leaders, R83) ----------
+        freshWithRole("Deputy", "WindClan"); quiet();
         check("R75", "V with no rogue pack attacking does nothing but say so", () => {
           rogue.state = "gone"; rogue.respawn = 999; rogueMates = [];
           press("KeyV");
@@ -2723,7 +2740,7 @@
 
         // ---------- R77 tougher, rarer rogue packs ----------
         check("R77", "pack leaders have 130 health and the others 80", () => {
-          freshWithRole("Warrior", "WindClan"); quiet(); placeAt(-40, -40);
+          freshWithRole("Deputy", "WindClan"); quiet(); placeAt(-40, -40);
           rogue.state = "gone"; rogue.respawn = 0; step(0.1);
           return ROGUE_PACK_HP === 130 && ROGUE_MATE_HP === 80 && rogue.hp === 130 && rogueMates.length >= 1 && rogueMates.every((m) => m.hp === 80);
         });
@@ -2733,6 +2750,238 @@
           step(4);
           return ROGUE_PACK_RESPAWN === 2 * ROGUE_RESPAWN && ROGUE_PACK_RESPAWN === 240 && ROGUE_RESPAWN === 120 && rogue.state === "gone" &&
             rogue.respawn > ROGUE_RESPAWN && (step(ROGUE_RESPAWN + 1), rogue.state === "gone") && (step(ROGUE_RESPAWN), rogue.state === "roaming");
+        });
+
+        // ================= Round 8 =================
+
+        // ---------- R78 territories can change ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        const catOf = (clan) => patrols.find((p) => p.clan === clan);
+        check("R78", "borders start on the middle lines; WindClan's neighbours are ShadowClan and RiverClan", () =>
+          territoryAt(-5, 30) === "ShadowClan" && territoryAt(5, 30) === "WindClan" && territoryAt(30, -5) === "RiverClan" &&
+          territoryAt(-30, -5) === "ThunderClan" && neighbours("WindClan").sort().join() === "RiverClan,ShadowClan" &&
+          LAND_STEP === 10 && LAND_WIN === 5 && LAND_MAX === 30);
+        check("R78", "each fight won against a neighbour's cat scores 1; at 5 the border moves 10 units into their land", () => {
+          for (let i = 0; i < 4; i++) defeatEnemy(catOf("ShadowClan"));
+          const four = landScore.ShadowClan === 4 && territoryAt(-5, 30) === "ShadowClan";
+          defeatEnemy(catOf("ShadowClan"));
+          return four && landScore.ShadowClan === 0 && territoryAt(-5, 30) === "WindClan" && territoryAt(-11, 30) === "ShadowClan" &&
+            /border|land/i.test(lastMessage);
+        });
+        check("R78", "the clan across the corner (ThunderClan) can't take or lose land with you", () => {
+          for (let i = 0; i < 6; i++) defeatEnemy(catOf("ThunderClan"));
+          return (landScore.ThunderClan || 0) === 0 && territoryAt(-30, -5) === "ThunderClan";
+        });
+        check("R78", "being beaten by a neighbour's cat costs 1; at -5 the border moves 10 units into your land", () => {
+          const river = catOf("RiverClan");
+          for (let i = 0; i < 5; i++) { Object.assign(player, { hp: 1, dodgeTimer: 0, lifeShield: 0 }); hurtPlayer(50, river); }
+          return territoryAt(30, 5) === "RiverClan" && territoryAt(30, 11) === "WindClan" && landScore.RiverClan === 0;
+        });
+        check("R78", "driving off a raid scores 3; a raid that steals costs 3", () => {
+          placeAt(-40, -40);   // (far from camp, so the raiders go for the pile instead of you)
+          startRaid("ShadowClan");
+          raiders.forEach((r) => defeatEnemy(r));
+          const won = landScore.ShadowClan === 3;
+          startRaid("ShadowClan");
+          Object.assign(raiders[0], { x: FRESH_KILL.x, z: FRESH_KILL.z }); addToPile("mouse"); step(0.2);
+          return won && landScore.ShadowClan === 0;
+        });
+        check("R78", "a border moves at most 30 units from the middle line", () => {
+          for (let i = 0; i < 60; i++) defeatEnemy(catOf("ShadowClan"));
+          return borders.x[1] === -LAND_MAX && territoryAt(-29, 30) === "WindClan" && territoryAt(-31, 30) === "ShadowClan";
+        });
+        check("R78", "the map and the HUD follow the new borders", () => {
+          place(-20, 40); updateHud();
+          const hud = /home/i.test(doc.getElementById("territory").textContent);
+          press("KeyM");
+          const ok = colorClose(mapPixel(-20, 40), CLANS.WindClan.color);
+          press("KeyM");
+          return hud && ok;
+        });
+        check("R78", "the other clan's patrols treat the claimed land as yours", () => {
+          const c = catOf("ShadowClan"); Object.assign(c, { state: "patrol", x: -22, z: 40, mode: "patrol" });
+          rivalry.ShadowClan = RIVALRY_HOSTILE; player.hp = 100;
+          place(-20, 40); step(3);
+          return player.hp === 100 && c.state !== "fighting";
+        });
+
+        // ---------- R79 rogues can't fight in a camp ----------
+        freshWithRole("Deputy", "WindClan"); quiet();
+        check("R79", "rogues never attack you in a camp: run in and they back off", () => {
+          rogue.state = "gone"; rogue.respawn = 0; step(0.1);
+          placeAt(0, -22); Object.assign(rogue, { x: player.x, z: player.z - 3 }); step(0.5);
+          const fighting = rogue.state === "fighting";
+          placeAt(0, -3); player.hp = 100;
+          Object.assign(rogue, { x: CAMP.x, z: CAMP.z - 6 });
+          rogueMates.forEach((m) => Object.assign(m, { x: CAMP.x + 2, z: CAMP.z - 6 }));
+          step(4);
+          return fighting && player.hp === 100 && rogue.state !== "fighting" && dist2d(rogue, CAMP) > CAMP_SAFE - 1;
+        });
+        check("R79", "a roaming rogue that sees you in camp doesn't come for you", () => {
+          placeAt(0, -3); Object.assign(rogue, { x: CAMP.x, z: CAMP.z - 17, state: "roaming" }); step(2);
+          return rogue.state !== "fighting" && CAMP_SAFE === 15;
+        });
+
+        // ---------- R80 medicine cats stay in their dens ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        const medDen = (clan) => huts.find((h) => h.clan === clan && h.id === "medicine");
+        check("R80", "a hurt camp cat walks into the medicine den and is treated there; Thymeleaf never leaves it", () => {
+          injuryTimer = 999;
+          const hurt = campCats[2]; Object.assign(hurt, { injured: true, injuredTime: TREAT_AFTER, hp: 40 });
+          let wentIn = false; let medicStayed = true;
+          placeAt(-30, -30);
+          for (let i = 0; i < 60 && hurt.injured; i++) {
+            step(0.5);
+            if (insideHut(hurt) === medDen(clanName)) wentIn = true;
+            if (insideHut(thyme()) !== medDen(clanName)) medicStayed = false;
+          }
+          return wentIn && medicStayed && !hurt.injured && hurt.hp === 100;
+        });
+        check("R80", "a beaten rival cat rests inside its own medicine den and is treated there", () => {
+          const c = patrols.find((p) => p.clan === "RiverClan" && p.mode === "camp");
+          Object.assign(c, { state: "fleeing", fleeTimer: 0.1 });
+          let restedInDen = false; let medicStayed = true;
+          const medic = medicineCats.find((m) => m.clan === "RiverClan");
+          for (let i = 0; i < 60 && c.state !== "patrol"; i++) {
+            step(0.5);
+            if (c.state === "resting" && insideHut(c) === medDen("RiverClan")) restedInDen = true;
+            if (insideHut(medic) !== medDen("RiverClan")) medicStayed = false;
+          }
+          return restedInDen && medicStayed && c.state === "patrol";
+        });
+
+        // ---------- R81 nothing blocks your view ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        check("R81", "a tree between the camera and your cat turns see-through, and only while it is in the way", () => {
+          placeAt(0, -30); player.heading = 0; snapCamera();
+          const cam = cameraFor();
+          const mid = { x: (cam.x + player.x) / 2, z: (cam.z + player.z) / 2 };
+          trees.push({ x: mid.x, z: mid.z, r: 0.5, h: 12, kind: "oak", phase: 0, branches: [] });
+          trees.push({ x: player.x + 15, z: player.z + 15, r: 0.5, h: 12, kind: "oak", phase: 0, branches: [] });
+          buildScene(); renderFrame();
+          const n = trees.length;
+          const blocker = view.treeParts[n - 2]; const other = view.treeParts[n - 1];
+          const faded = blocker.trunk.userData.faded && blocker.trunk.material.transparent && blocker.trunk.material.opacity < 0.5;
+          const otherClear = !other.trunk.userData.faded;
+          player.heading = Math.PI / 2; snapCamera(); renderFrame();   // turn: the tree is no longer in the way
+          const back = !blocker.trunk.userData.faded && blocker.trunk.material.opacity === 1;
+          trees.length = n - 2; buildScene();
+          return faded && otherClear && back;
+        });
+        check("R81", "a cat between the camera and you turns see-through", () => {
+          placeAt(0, -30); player.heading = 0; snapCamera();
+          const cam = cameraFor();
+          const c = campCats[0]; Object.assign(c, { x: (cam.x + player.x) / 2, z: (cam.z + player.z) / 2, timer: 99, hungerTimer: 999 });
+          renderFrame();
+          return view.campCatModels[0].userData.faded === true && !view.campCatModels[1].userData.faded;
+        });
+        check("R81", "a hut wall in the way fades, but not the hut you are inside", () => {
+          const h = warriorsHut();
+          const a = h.door + Math.PI;   // stand against the back wall, facing away: the camera is on the far side of the wall
+          place(h.x + Math.sin(a) * (h.R + 0.8), h.z + Math.cos(a) * (h.R + 0.8)); player.heading = a; snapCamera();
+          renderFrame();
+          const model = view.hutModels.find((m) => m.userData.hut === h);
+          const fadedOutside = model.userData.faded === true;
+          place(h.x, h.z); snapCamera(); renderFrame();
+          return fadedOutside && !model.userData.faded;
+        });
+
+        // ---------- R83 rogues grow with your rank ----------
+        check("R83", "a warrior faces one rogue at a time: roaming, smart, 100 health, 18 damage", () => {
+          freshWithRole("Warrior", "WindClan"); quiet(); placeAt(-40, -40);
+          rogue.state = "gone"; rogue.respawn = 0; step(0.1);
+          return rogue.state === "roaming" && rogue.smart && rogue.hp === ROGUE_SOLO_HP && ROGUE_SOLO_HP === 100 &&
+            rogue.damage === 18 && rogueMates.length === 0;
+        });
+        check("R83", "a medicine cat faces one rogue too", () => {
+          freshWithRole("Medicine cat", "WindClan"); quiet(); placeAt(-40, -40);
+          rogue.state = "gone"; rogue.respawn = 0; step(0.1);
+          return rogue.state === "roaming" && rogueMates.length === 0;
+        });
+        check("R83", "deputies and leaders face packs", () => {
+          freshWithRole("Leader", "WindClan"); quiet(); placeAt(-40, -40);
+          decisionTimer = 999; gatheringTimer = 999;
+          rogue.state = "gone"; rogue.respawn = 0; step(0.1);
+          return rogue.hp === ROGUE_PACK_HP && rogueMates.length >= 1 && rogueMates.length <= 2;
+        });
+        check("R83", "you can't call a patrol against a single rogue (R75 is for packs)", () => {
+          freshWithRole("Warrior", "WindClan"); quiet(); placeAt(-20, -25);
+          rogue.state = "gone"; rogue.respawn = 0; step(0.1);
+          Object.assign(rogue, { x: player.x, z: player.z + 4 }); step(0.3);
+          press("KeyV");
+          return rogue.state === "fighting" && helpers.length === 0 && /pack/i.test(lastMessage);
+        });
+
+        // ---------- R84 saving ----------
+        localStorage.removeItem(SAVE_KEY);
+        currentSlot = null;   // (the Start button at the top of the tests put that cat in slot 0)
+        check("R84", "the test page uses its own save storage, not the game's", () => SAVE_KEY !== "catclans-saves" && SAVE_SLOTS === 3);
+        check("R84", "saveData() and loadData() bring back your cat and its progress", () => {
+          freshWithRole("Deputy", "RiverClan"); quiet();
+          Object.assign(stats, { hunts: 2, fights: 1 }); day = 40; dayTime = 0.4 * DAY_LENGTH; player.hp = 55; player.food = 66;
+          rivalry.WindClan = 77; borders.z[1] = 10; addToPile("rabbit"); trainee.lesson = "battle";
+          const name = fullName(); const data = JSON.parse(JSON.stringify(saveData()));
+          clanName = "ThunderClan"; resetGame();
+          loadData(data);
+          return clanName === "RiverClan" && fullName() === name && role === "Deputy" && stats.hunts === 2 && stats.fights === 1 &&
+            day === 40 && Math.abs(dayTime - 0.4 * DAY_LENGTH) < 1 && season() === "greenleaf" && player.hp === 55 && player.food === 66 &&
+            rivalry.WindClan === 77 && borders.z[1] === 10 && pileItems.some((p) => p.kind === "rabbit") && trainee && trainee.lesson === "battle";
+        });
+        check("R84", "the Esc menu's Save button saves to your slot", () => {
+          currentSlot = 1;
+          press("Escape");
+          doc.querySelector("#main-menu button[data-action='save']").click();
+          const slots = saveSlots();
+          press("Escape");
+          return slots[1] && slots[1].clanName === "RiverClan" && slots[1].role === "Deputy" && /saved/i.test(lastMessage) && !slots[0] && !slots[2];
+        });
+        check("R84", "the game saves itself every 30 seconds", () => {
+          const before = saveSlots()[1].savedAt;
+          step(31);
+          return saveSlots()[1].savedAt > before;
+        });
+        check("R84", "...and when you rank up", () => {
+          const before = saveSlots()[1].savedAt;
+          promote("Leader");
+          return saveSlots()[1].savedAt > before && saveSlots()[1].role === "Leader";
+        });
+        check("R84", "the start menu lists saved cats with Continue and Delete", () => {
+          showMenu(); renderSaves();
+          const rows = [...doc.querySelectorAll("#saves .save-row")];
+          return rows.length === 1 && rows[0].textContent.includes("star") && rows[0].querySelector("[data-act='continue']") &&
+            rows[0].querySelector("[data-act='delete']");
+        });
+        check("R84", "Continue loads the saved cat and starts playing", () => {
+          clanName = "ThunderClan"; resetGame();
+          doc.querySelector("#saves .save-row [data-act='continue']").click();
+          return playing && clanName === "RiverClan" && role === "Leader" && currentSlot === 1 &&
+            doc.getElementById("menu").classList.contains("hidden");
+        });
+        check("R84", "a new cat goes into an empty slot", () => {
+          showMenu();
+          doc.getElementById("start-btn").click();
+          const slots = saveSlots();
+          return playing && currentSlot === 0 && slots[0] && slots[0].stage === 0 && slots[1].role === "Leader";
+        });
+        check("R84", "with all 3 slots full, a new cat asks which one to replace", () => {
+          currentSlot = 2; saveNow();
+          showMenu();
+          doc.getElementById("start-btn").click();
+          const asked = !doc.getElementById("replace-slot").classList.contains("hidden") && !playing &&
+            doc.querySelectorAll("#replace-options button").length === 3;
+          doc.querySelectorAll("#replace-options button")[1].click();
+          return asked && playing && currentSlot === 1 && saveSlots()[1].stage === 0 && doc.getElementById("replace-slot").classList.contains("hidden");
+        });
+        check("R84", "Delete removes a saved cat", () => {
+          showMenu(); renderSaves();
+          const n = doc.querySelectorAll("#saves .save-row").length;
+          doc.querySelector("#saves .save-row [data-act='delete']").click();
+          const after = doc.querySelectorAll("#saves .save-row").length;
+          localStorage.removeItem(SAVE_KEY);
+          currentSlot = null;
+          doc.getElementById("start-btn").click();   // back into a game for the checks below
+          localStorage.removeItem(SAVE_KEY);
+          return n === 3 && after === 2;
         });
 
         // ================= R24 grass (drawing) =================
