@@ -27,6 +27,7 @@
       <div id="lives" class="hidden"></div>
       <div id="orders" class="hidden"></div>
       <div id="scent" class="hidden"></div>
+      <div id="mission" class="hidden"></div>
       <div id="rogue-bar" class="bar hidden"><div class="fill"></div><span>Enemy</span></div>
       <div id="bars">
         <div id="health-bar" class="bar"><div class="fill"></div><span>Health</span></div>
@@ -58,6 +59,13 @@
       <button data-action="resume">Resume</button>
       <button data-action="restart">Restart</button>
       <button data-action="newcat">New cat</button>
+      <div id="controls-help"></div>
+    </div>
+    <div id="aim" class="hidden"></div>
+    <div id="choice" class="hidden">
+      <h2 id="choice-title"></h2>
+      <p id="choice-text"></p>
+      <div id="choice-options"></div>
     </div>
     <div id="message" class="hidden"></div>
     <div id="menu">
@@ -556,8 +564,8 @@
           }
           return trainee.lesson === "patrol" && trainee.hp === undefined || (trainee.lesson === "patrol" && trainee.hp === 100);
         });
-        check("R36", "deputy -> leader needs 3 prey, 2 fights and a trained apprentice", () =>
-          LEADER_NEEDS.hunts === 3 && LEADER_NEEDS.fights === 2 && LEADER_NEEDS.trained === 1);
+        check("R36", "deputy -> leader needs 3 prey, 2 fights, a trained apprentice and a mission (R49)", () =>
+          LEADER_NEEDS.hunts === 3 && LEADER_NEEDS.fights === 2 && LEADER_NEEDS.trained === 1 && LEADER_NEEDS.missions === 1);
         check("R36", "prey and fights alone don't make a leader", () => {
           stats.hunts = 2; stats.fights = 2;
           quiet(); placeAt(0, -30); catchMouseHere();
@@ -565,6 +573,7 @@
         });
         check("R39", "the last lesson is a border patrol with your apprentice; then it becomes a warrior", () => {
           const t = trainee;
+          stats.missions = 1; // R49: a mission is needed too (missions have their own checks below)
           walkThePatrol();
           return t.lesson === "done" && !t.name.endsWith("paw") && t.name.startsWith(t.baseName); // (the promotion that follows resets the counts)
         });
@@ -641,7 +650,7 @@
           freshWithRole("Medicine cat");
           stats.hunts = 20; stats.fights = 20; stats.patrols = 5; stats.trained = 5;
           placeAt(0, -30); catchMouseHere();
-          return role === "Medicine cat" && rankName() === "Medicine cat";
+          return role === "Medicine cat" && /medicine cat/i.test(rankName()) && !rankName().includes("Leader");
         });
         check("R9", "orders do nothing for a cat that is not leader", () => {
           freshWithRole("Warrior");
@@ -905,9 +914,9 @@
           step(0.1); pressE();
           return b.state === "hidden" && player.food === 50 + PREY_FOOD.beetle && stage === 0;
         });
-        check("R13", "a mouse runs if a kit walks up loudly", () => {
+        check("R13", "a mouse runs if a kit walks up loudly (close up: camp prey is less wary, R56)", () => {
           placeAt(0, -2);
-          const m = easyPrey("mouse", 2.5, -2);
+          const m = easyPrey("mouse", 1.2, -2);
           step(0.1);
           return m.state === "fleeing";
         });
@@ -1247,11 +1256,13 @@
         check("R18", "herbs aren't wasted at full health", () => { player.hp = 100; press("Digit1"); press("KeyH"); return player.pouch.marigold === 1; });
         check("R18", "camp cats sometimes get hurt", () => {
           campCats.forEach((c) => { c.injured = false; });
-          step(INJURY_TIME + 1);
-          return campCats.some((c) => c.injured);
+          let seen = false; // the camp's medicine cat (R52) may heal them again, so watch the whole time
+          for (let i = 0; i < INJURY_TIME + 1; i++) { step(1); if (campCats.some((c) => c.injured)) seen = true; }
+          return seen;
         });
         check("R18", "only a medicine cat can heal an injured clanmate", () => {
-          const hurt = campCats.find((c) => c.injured);
+          const hurt = campCats[0];
+          Object.assign(hurt, { injured: true, injuredTime: 0, hp: 40, timer: 99 });
           player.pouch = { marigold: 1, dock: 0 };
           place(hurt.x, hurt.z - 1.2); pressE();
           return hurt.injured === true && player.pouch.marigold === 1;
@@ -1742,6 +1753,347 @@
           const still = player.idleTime >= 1.9;
           keys.KeyW = true; step(0.2); releaseAll();
           return still && player.idleTime < 0.1;
+        });
+
+        // ================= Round 5 =================
+        // ---------- R47 prey of different sizes ----------
+        check("R47", "voles, sparrows, rabbits and hares join the prey, small to big", () =>
+          ["vole", "sparrow", "rabbit", "hare"].every((k) => PREY_KINDS[k]) &&
+          PREY_KINDS.vole.size === "small" && PREY_KINDS.sparrow.size === "small" &&
+          PREY_KINDS.rabbit.size === "medium" && PREY_KINDS.hare.size === "big");
+        check("R47", "bigger prey gives more food, notices you sooner and runs faster", () => {
+          const order = ["mouse", "rabbit", "hare"];
+          return order.every((k, i) => i === 0 || (PREY_FOOD[k] > PREY_FOOD[order[i - 1]] &&
+            PREY_KINDS[k].notice > PREY_KINDS[order[i - 1]].notice && PREY_KINDS[k].flee > PREY_KINDS[order[i - 1]].flee));
+        });
+        check("R47", "voles, sparrows and rabbits live in your territory; hares only come on a big hunt", () => {
+          clanName = "WindClan"; resetGame(); playing = true; stage = 2; role = "Warrior";
+          const kinds = new Set(prey.map((p) => p.kind));
+          return kinds.has("vole") && kinds.has("sparrow") && kinds.has("rabbit") && !kinds.has("hare");
+        });
+        check("R47", "kits in camp only find beetles and mice", () => {
+          stage = 0; role = null;
+          prey.forEach((p) => { p.state = "idle"; });
+          step(0.5);
+          return prey.filter((p) => p.state !== "hidden").every((p) => p.kind === "beetle" || p.kind === "mouse");
+        });
+        check("R47", "a rabbit is filling and counts as prey", () => {
+          freshWithRole("Warrior"); placeAt(0, -30); player.food = 40;
+          addPrey("rabbit", at(0, -28)); keys.ShiftLeft = true; step(1 / 60); pressE(); releaseAll();
+          return player.food === 40 + PREY_FOOD.rabbit && stats.hunts === 1;
+        });
+        const theHare = () => prey.find((p) => p.kind === "hare");
+        check("R47", "order 4 starts a big hunt: a hare appears", () => {
+          freshWithRole("Leader", "WindClan"); quiet(); placeAt(0, -30);
+          press("Digit4");
+          return order === "bighunt" && theHare() && territoryAt(theHare().x, theHare().z) === clanName;
+        });
+        check("R47", "the clanmates surround the hare", () => {
+          step(25);
+          return hareSurrounded() && clanmates.every((c) => dist2d(c, theHare()) < 5);
+        });
+        check("R47", "a surrounded hare can't run away, even if you walk up loudly", () => {
+          const h = theHare();
+          place(h.x, h.z - 6); step(0.5);
+          return h.state !== "fleeing" && h.state !== "hidden";
+        });
+        check("R47", "catching the hare puts 4 pieces on the fresh-kill pile", () => {
+          const h = theHare(); const before = freshKill;
+          place(h.x, h.z - 1.5); player.heading = 0; pressE();
+          return freshKill === before + BIG_HUNT_PIECES && !theHare() && order !== "bighunt";
+        });
+        check("R47", "a hare that isn't surrounded runs away", () => {
+          press("Digit4"); const h = theHare();
+          clanmates.forEach((c) => { c.x = CAMP.x; c.z = CAMP.z; });
+          place(h.x, h.z - 6); step(0.3);
+          return h.state === "fleeing";
+        });
+
+        // ---------- R48 Gatherings ----------
+        freshWithRole("Leader", "WindClan"); quiet();
+        check("R48", "a leader is called to the full-moon Gathering at the Great Oak", () => {
+          gatheringTimer = 0.05; step(0.2);
+          return gathering.called && /gathering/i.test(lastMessage) && GATHERING_SPOT.x === 0 && GATHERING_SPOT.z === 0;
+        });
+        check("R48", "at the Great Oak the other three leaders are there, and you give a speech (the game waits)", () => {
+          place(2, 3); step(0.2);
+          const leaders = gatheringLeaders.map((l) => l.clan).sort().join();
+          const z = player.z; keys.KeyW = true; step(0.5); releaseAll();
+          return leaders === "RiverClan,ShadowClan,ThunderClan" && gatheringLeaders.every((l) => dist2d(l, GATHERING_SPOT) < 10) &&
+            pendingChoice && pendingChoice.kind === "speech" && pendingChoice.options.length === 3 && player.z === z &&
+            !doc.getElementById("choice").classList.contains("hidden");
+        });
+        check("R48", "speaking of peace lowers every rivalry by 15", () => {
+          doc.querySelectorAll("#choice-options button")[0].click();
+          return !pendingChoice && Object.values(rivalry).every((r) => r === 15) && !gathering.called;
+        });
+        check("R48", "there is a truce near the Great Oak: nobody attacks", () => {
+          rivalry.ShadowClan = 50;
+          const c = patrols.find((p) => p.clan === "ShadowClan");
+          Object.assign(c, { x: -4, z: 8, state: "patrol" });
+          place(-3, 4); step(0.5); // ShadowClan land, next to the oak
+          return c.state !== "fighting";
+        });
+        check("R48", "only leaders are called to Gatherings", () => {
+          freshWithRole("Warrior"); gatheringTimer = 0.05; step(0.2);
+          return !gathering.called;
+        });
+
+        // ---------- R50 big decisions ----------
+        freshWithRole("Leader", "WindClan"); quiet();
+        check("R50", "every so often the leader must make a big decision (the game waits)", () => {
+          decisionTimer = 0.05; step(0.2);
+          const z = player.z; keys.KeyW = true; step(0.3); releaseAll();
+          return pendingChoice && pendingChoice.kind === "decision" && pendingChoice.options.length >= 2 && player.z === z;
+        });
+        const choose = (label) => {
+          const i = pendingChoice.options.findIndex((o) => o.label.toLowerCase().includes(label));
+          doc.querySelectorAll("#choice-options button")[i].click();
+        };
+        check("R50", "taking in a stray kit adds a kit to the camp and costs fresh-kill", () => {
+          pendingChoice = null;
+          const kitsBefore = kits.filter((k) => k.clan === clanName).length; const pile = freshKill;
+          triggerDecision("stray"); choose("take");
+          return kits.filter((k) => k.clan === clanName).length === kitsBefore + 1 && freshKill === pile - 1;
+        });
+        check("R50", "raiding a thief's camp brings fresh-kill but raises that clan's rivalry by 20", () => {
+          triggerDecision("theft"); const clan = pendingChoice.clan; const r = rivalry[clan]; const pile = freshKill;
+          choose("raid");
+          return freshKill === pile + 2 && rivalry[clan] === r + 20;
+        });
+        check("R50", "resting through a sickness leaves camp cats hurt", () => {
+          campCats.forEach((c) => { c.injured = false; });
+          triggerDecision("sickness"); choose("rest");
+          return campCats.filter((c) => c.injured).length === 2;
+        });
+        check("R50", "sending cats for herbs during a sickness stocks the herb store", () => {
+          const store = herbStore; const pile = freshKill;
+          triggerDecision("sickness"); choose("herbs");
+          return herbStore === store + 2 && freshKill === pile - 1;
+        });
+
+        // ---------- R49 deputy missions ----------
+        freshWithRole("Deputy", "WindClan"); quiet();
+        check("R49", "a deputy is sent on a mission outside the territory: first, carry a message", () =>
+          mission && mission.type === "message" && mission.clan !== clanName && territoryAt(mission.target.x, mission.target.z) === mission.clan);
+        check("R49", "the HUD shows the mission", () => { updateHud(); return !doc.getElementById("mission").classList.contains("hidden") && doc.getElementById("mission").textContent.includes(mission.clan); });
+        check("R49", "the clan you carry a message to lets you pass", () => {
+          const c = patrols.find((p) => p.clan === mission.clan && p.mode === "patrol");
+          const spot = { x: c.x, z: c.z };
+          place(spot.x + 4, spot.z); step(0.5);
+          return c.state !== "fighting" && territoryAt(player.x, player.z) === mission.clan;
+        });
+        check("R49", "reaching their camp delivers the message; the next mission comes 30 s later", () => {
+          place(mission.target.x, mission.target.z + 2); step(0.2);
+          const done = stats.missions === 1 && mission === null;
+          step(MISSION_GAP + 1);
+          return done && mission && mission.type === "stolen";
+        });
+        check("R49", "recover stolen prey: pick it up in their land (their rivalry rises by 5)", () => {
+          const r = rivalry[mission.clan];
+          place(stolenPrey.x, stolenPrey.z - 1); player.heading = 0; pressE();
+          return player.carrying === "rabbit" && rivalry[mission.clan] === r + 5 && territoryAt(stolenPrey.x, stolenPrey.z) === mission.clan;
+        });
+        check("R49", "bringing it to your fresh-kill pile completes the mission", () => {
+          const pile = freshKill;
+          place(FRESH_KILL.x, FRESH_KILL.z - 1); pressE();
+          const done = freshKill === pile + 1 && stats.missions === 2 && mission === null;
+          missionTimer = 0.05; step(0.2);
+          return done && mission && mission.type === "lostkit";
+        });
+        check("R49", "find a lost kit: it is in another clan's land", () => {
+          const k = kits.find((x) => x.lost);
+          return k && k.clan === clanName && territoryAt(k.x, k.z) === mission.clan;
+        });
+        check("R49", "press E by the lost kit and it follows you; bring it into camp to finish", () => {
+          const k = kits.find((x) => x.lost);
+          place(k.x, k.z - 1); player.heading = 0; pressE();
+          const following = k.following === true;
+          placeAt(0, -4); step(30); // it runs after you all the way home
+          return following && !k.lost && stats.missions === 3 && mission === null;
+        });
+
+        // ---------- R54 rivalries ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        check("R54", "every other clan starts with a rivalry of 30, shown on the map", () => {
+          press("KeyM");
+          const text = doc.getElementById("map-legend").textContent;
+          press("KeyM");
+          return ["ThunderClan", "ShadowClan", "RiverClan"].every((c) => rivalry[c] === 30) && /rivalry/i.test(text) && text.includes("30");
+        });
+        check("R54", "beating one of their cats raises their rivalry by 5", () => {
+          const c = patrols.find((p) => p.clan === "ShadowClan");
+          Object.assign(c, { x: -20, z: 21.2, state: "fighting", hp: 5, stagger: 0, windup: 0 });
+          place(-20, 20); pressE();
+          return rivalry.ShadowClan === 35;
+        });
+        check("R54", "time spent on their land raises their rivalry", () => {
+          patrols.forEach((p) => { p.state = "resting"; p.respawn = 999; });
+          place(-100, 100); step(21);
+          return rivalry.ShadowClan === 37;
+        });
+        check("R54", "low rivalry: their cats warn you off instead of attacking", () => {
+          freshWithRole("Warrior", "WindClan"); rivalry.ShadowClan = 10;
+          const c = patrols.find((p) => p.clan === "ShadowClan");
+          Object.assign(c, { x: -20, z: 20, state: "patrol" });
+          place(-20, 10); step(0.5);
+          return c.state !== "fighting" && /warn/i.test(lastMessage);
+        });
+        check("R54", "high rivalry: their cats spot you from further away", () => {
+          const c = patrols.find((p) => p.clan === "ShadowClan");
+          rivalry.ShadowClan = 30;
+          Object.assign(c, { x: -20, z: 27, state: "patrol" }); place(-20, 10); step(0.1);
+          const calm = c.state !== "fighting";
+          rivalry.ShadowClan = 80;
+          Object.assign(c, { x: -20, z: 27, state: "patrol" }); place(-20, 10); step(0.1);
+          return calm && c.state === "fighting";
+        });
+        check("R54", "high rivalry: they raid your camp and take fresh-kill", () => {
+          freshWithRole("Warrior", "WindClan"); quiet();
+          rivalry.ShadowClan = 80; placeAt(-25, -25);
+          const pile = freshKill;
+          raidTimer = 0.05; step(0.2);
+          const raided = raiders.length === 2 && raiders.every((r) => r.clan === "ShadowClan");
+          step(25);
+          return raided && freshKill < pile;
+        });
+
+        // ---------- R52 a medicine cat in every camp ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        check("R52", "every camp has a medicine cat by its medicine den", () =>
+          Object.keys(CLANS).every((c) => {
+            const mc = medicineCats.filter((m) => m.clan === c);
+            const den = huts.find((h) => h.clan === c && h.id === "medicine");
+            return mc.length === 1 && dist2d(mc[0], den) < 6;
+          }));
+        const thyme = () => medicineCats.find((m) => m.clan === clanName);
+        check("R52", "your medicine cat, Thymeleaf, heals you when you press E next to them", () => {
+          const m = thyme(); player.hp = 30;
+          place(m.x, m.z - 1.2); player.heading = 0; pressE();
+          return m.name === "Thymeleaf" && player.hp === 100;
+        });
+        check("R52", "...but only once a minute", () => {
+          const m = thyme(); player.hp = 30;
+          place(m.x, m.z - 1.2); pressE();
+          return player.hp === 30;
+        });
+        check("R52", "Thymeleaf treats a hurt camp cat after it has been hurt for 30 seconds", () => {
+          const hurt = campCats[1];
+          Object.assign(hurt, { injured: true, injuredTime: 0, hp: 40 });
+          step(10);
+          const stillHurt = hurt.injured;
+          step(35);
+          return stillHurt && !hurt.injured && hurt.hp === 100;
+        });
+        check("R52", "medicine cats are drawn", () => { renderFrame(); return view.medicineCatModels.length === medicineCats.length; });
+
+        // ---------- R53 click to pick herbs ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        const aimAt = (h, gap, turn) => { place(h.x, h.z - gap); player.heading = turn || 0; player.camPitch = 0; snapCamera(); };
+        check("R53", "an aiming dot is shown while playing", () => { updateHud(); return !doc.getElementById("aim").classList.contains("hidden"); });
+        check("R53", "clicking picks the herb you aim at", () => {
+          const h = herbs[0]; h.ready = true; aimAt(h, 2.5);
+          const aimed = aimedHerb() === h;
+          clickToPick();
+          return aimed && pouchCount() === 1 && h.ready === false;
+        });
+        check("R53", "clicking while aiming elsewhere picks nothing", () => {
+          const h = herbs[1]; h.ready = true; aimAt(h, 2.5, 1.2);
+          clickToPick();
+          return aimedHerb() === null && pouchCount() === 1 && h.ready;
+        });
+        check("R53", "an herb further than 3.5 away can't be clicked", () => {
+          const h = herbs[1]; aimAt(h, 6);
+          clickToPick();
+          return pouchCount() === 1 && h.ready;
+        });
+        check("R53", "the herb you aim at glows", () => {
+          const h = herbs[1]; aimAt(h, 2.5); renderFrame();
+          return view.herbModels[1].userData.aimed === true;
+        });
+
+        // ---------- R51 prey can't swim ----------
+        check("R51", "frightened prey runs along the bank instead of into the water", () => {
+          freshApprentice(null, "WindClan");
+          const m = addPrey("mouse", { x: RIVER_X0 - 1.5, z: CAMP.z });
+          Object.assign(m, { state: "fleeing", dirX: 1, dirZ: 0.2 });
+          place(RIVER_X0 - 4, CAMP.z);
+          let wet = false;
+          for (let i = 0; i < 120; i++) { step(1 / 60); if (inRiver(m.x)) wet = true; }
+          return !wet;
+        });
+        check("R51", "prey never appears in the water", () => {
+          freshApprentice(null, "WindClan");
+          let wet = false;
+          for (let i = 0; i < 200; i++) { const s = preySpot(); if (nearRiver(s.x) && inRiver(s.x)) wet = true; }
+          return !wet && prey.every((p) => !inRiver(p.x));
+        });
+
+        // ---------- R55 bigger screen ----------
+        check("R55", "the 3D view resizes to fill the window", () => {
+          fitView(1280, 720);
+          const ok = Math.abs(view.camera.aspect - 1280 / 720) < 0.001 && view.renderer.domElement.width === Math.round(1280 * view.renderer.getPixelRatio());
+          fitView(960, 540);
+          return ok;
+        });
+        check("R55", "the controls list is in the main menu", () => {
+          const text = doc.getElementById("controls-help").textContent;
+          return /walk/i.test(text) && /dodge/i.test(text) && /map/i.test(text) && doc.getElementById("main-menu").contains(doc.getElementById("controls-help"));
+        });
+
+        // ---------- R56 easier hunting for kits ----------
+        check("R56", "prey in camp notices a kit at half the distance", () => {
+          clanName = "WindClan"; resetGame(); playing = true; quiet();
+          placeAt(0, -2);
+          const kitMouse = addPrey("mouse", at(0, 1)); // 3 away
+          step(0.1);
+          const kitOk = kitMouse.state !== "fleeing";
+          freshApprentice(null, "WindClan"); placeAt(0, -30);
+          const appMouse = addPrey("mouse", at(0, -27)); step(0.1);
+          return kitOk && appMouse.state === "fleeing";
+        });
+        check("R56", "prey in camp is slower", () => {
+          clanName = "WindClan"; resetGame(); playing = true; quiet(); placeAt(0, -2);
+          const m = addPrey("mouse", at(0, 1));
+          Object.assign(m, { state: "fleeing", dirX: 0, dirZ: 1 });
+          step(0.5);
+          const campDist = dist2d(m, at(0, 1));
+          return Math.abs(campDist - PREY_KINDS.mouse.flee * 0.6 * 0.5) < 0.05;
+        });
+
+        // ---------- R57 medicine cat ranks and tasks ----------
+        freshWithRole("Medicine cat", "WindClan");
+        check("R57", "the medicine path starts as a medicine cat apprentice", () => rankName() === "Medicine cat apprentice" && medRank === 0);
+        check("R57", "Thymeleaf gives a herb collecting quest", () =>
+          medQuest && medQuest.marigold + medQuest.dock >= 3 && /^Thymeleaf/.test(lastMessage));
+        const medDen = () => dens.find((d) => d.id === "medicine");
+        check("R57", "putting the herbs in the medicine den's store completes the quest", () => {
+          const q = Object.assign({}, medQuest);
+          player.pouch = { marigold: q.marigold, dock: q.dock };
+          place(medDen().x, medDen().z); pressE();
+          return herbStore === q.marigold + q.dock && pouchCount() === 0 && stats.quests === 1;
+        });
+        const treatOne = () => {
+          const hurt = campCats.find((c) => !c.injured) || campCats[0];
+          Object.assign(hurt, { injured: true, injuredTime: 0, hp: 40, timer: 99 });
+          player.pouch.marigold = 1;
+          place(hurt.x, hurt.z - 1.2); player.heading = 0; pressE();
+        };
+        check("R57", "treating clanmates counts toward your next rank", () => { treatOne(); return stats.treated === 1; });
+        check("R57", "1 quest and 2 clanmates treated: you become a medicine cat", () => {
+          treatOne();
+          return medRank === 1 && rankName() === "Medicine cat" && stats.treated === 0 && stats.quests === 0;
+        });
+        check("R57", "the herb store is shown in the herb pouch panel", () => {
+          press("KeyH"); const text = doc.getElementById("pouch").textContent; press("KeyH");
+          return /store/i.test(text);
+        });
+        check("R57", "a quest, 3 treated clanmates and 6 herbs in the store make you senior medicine cat", () => {
+          const q = Object.assign({}, medQuest);
+          player.pouch = { marigold: q.marigold, dock: q.dock };
+          place(medDen().x, medDen().z); pressE();
+          for (let i = 0; i < 3; i++) treatOne();
+          return herbStore >= 6 && medRank === 2 && rankName() === "Senior medicine cat";
         });
 
         // ================= R24 grass (drawing) =================
