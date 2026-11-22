@@ -419,7 +419,7 @@ from R9 changes as described in R43.
 ### R48. Gatherings
 - About every 15 minutes the leader is told that tonight is the full-moon **Gathering** at the
   Great Oak, in the middle of the world where the four territories meet. The call stays open for 5 minutes.
-- The Great Oak is a giant tree, and there is a **truce** around it: within 25 units, no cat attacks.
+- The Great Oak is a giant tree in a clearing, and there is a **truce** in the clearing: within 12 units, no cat attacks.
 - When the leader arrives, the other three clans' leaders are there and each shares news.
 - Then the player gives a speech (the game waits):
   - **Speak of peace:** every rivalry −15.
