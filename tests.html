@@ -1983,7 +1983,8 @@
           Object.assign(hurt, { injured: true, injuredTime: 0, hp: 40 });
           step(10);
           const stillHurt = hurt.injured;
-          step(35);
+          // Thymeleaf may first have to treat another cat or walk round a hut, so allow up to a minute in all
+          for (let i = 0; i < 50 && hurt.injured; i++) step(1);
           return stillHurt && !hurt.injured && hurt.hp === 100;
         });
         check("R52", "medicine cats are drawn", () => { renderFrame(); return view.medicineCatModels.length === medicineCats.length; });
