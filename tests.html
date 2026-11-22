@@ -6,7 +6,8 @@
   <link rel="stylesheet" href="style.css">
   <style>
     body { font-family: monospace; background: #111; color: #eee; margin: 10px; align-items: flex-start; }
-    #wrap { width: 960px; }
+    #wrap { position: relative; width: 960px; height: 540px; inset: auto; }   /* the test page keeps a fixed size */
+    body { overflow: auto; padding: 10px; }
     .pass { color: #7ddc6a; }
     .fail { color: #ff6b5b; }
   </style>
