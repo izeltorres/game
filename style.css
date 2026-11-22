@@ -583,3 +583,25 @@ h3 {
   font-size: 18px;
   padding: 8px;
 }
+
+/* ---------- Round 4 ---------- */
+/* R35: the fishing hint sits low, so the water and the fish stay in view */
+#fishing {
+  top: auto;
+  bottom: 44px;
+  padding: 6px 16px;
+  font-size: 14px;
+}
+
+#fishing p {
+  margin: 0;
+}
+
+/* R37: a leader's lives */
+#lives {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #ff8a8a;
+}

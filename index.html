@@ -15,6 +15,7 @@
       <div id="task"></div>
       <div id="clock"></div>
       <div id="territory"></div>
+      <div id="lives" class="hidden"></div>
       <div id="orders" class="hidden"></div>
       <div id="scent" class="hidden"></div>
       <div id="rogue-bar" class="bar hidden"><div class="fill"></div><span>Enemy</span></div>
@@ -28,7 +29,6 @@
     <!-- Fishing mini-game -->
     <div id="fishing" class="hidden">
       <p id="fishing-text"></p>
-      <div id="fish-water"><div id="fish-zone"></div><div id="fish"></div></div>
     </div>
 
     <!-- Herb pouch (R18) -->
@@ -58,7 +58,7 @@
 
     <!-- Main menu: press Esc (R26) -->
     <div id="main-menu" class="hidden">
-      <h2>Paused</h2>
+      <h2 id="main-menu-title">Paused</h2>
       <button data-action="resume">Resume</button>
       <button data-action="restart">Restart</button>
       <button data-action="newcat">New cat</button>
@@ -107,7 +107,7 @@
     Walk: W/&uarr; (tap twice to run) &middot; Back: S/&darr; &middot; Turn: A/D or &larr;/&rarr; &middot;
     Stalk: Shift &middot; Jump: Space &middot; Action: E &middot; Scent: hold Q &middot; Map: M &middot; Herbs: H<br>
     Fight: E swipe &middot; C dodge &middot; F pounce attack &middot; R bite &middot;
-    Drop prey: G &middot; Climb: walk into a tree &middot; Leader orders: 1 / 2 / 3 &middot; Menu: Esc (stops fishing while fishing)
+    Drop prey: G &middot; Look up/down: click the game, then move the mouse &middot; Climb: walk into a tree &middot; Leader orders: 1 / 2 / 3 &middot; Menu: Esc (stops fishing while fishing)
   </p>
 
   <!-- Three.js draws the 3D world (free, from a CDN) -->

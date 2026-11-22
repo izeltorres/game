@@ -35,19 +35,43 @@ function directionTo(target) {
 }
 
 function taskText() {
-  if (player.carrying) return `Take the ${player.carrying} to the fresh-kill pile in camp.` + directionTo(FRESH_KILL);
-  if (stage === 0) return "Task 1: Hunt a squirrel. Hold Shift to stalk slowly, then press E to pounce. Hold Q to sniff out prey.";
-  if (stage === 1) return "Task 2: Go fishing at the water in your territory. Stand by the water and press E." +
-                          directionTo({ x: CAMP.x > 0 ? RIVER_X0 - 1 : STREAM_X0 - 1, z: player.z });
+  // Carrying prey adds a reminder in front of whatever the task is
+  const carry = player.carrying ? `Carrying a ${player.carrying}: take it to the fresh-kill pile${directionTo(FRESH_KILL)} or drop it (G). ` : "";
+  return carry + mainTask();
+}
+
+function mainTask() {
+  // R42, R45: kits catch a mix of beetles and mice in camp
+  if (stage === 0) return `Kit: catch beetles (${kitCatches.beetle}/${KIT_NEEDS.beetle}) and mice ` +
+                          `(${kitCatches.mouse}/${KIT_NEEDS.mouse}) in camp. Stalk mice with Shift. Hold Q to sniff out prey.`;
   if (choosingMentor) return "Choose your mentor.";
-  if (stage === 2) return `Task 3: A rogue cat is on your territory. Chase it off! Your mentor ${mentorName() || ""} is with you.` + directionTo(rogue);
+  // R44: the mentor's tasks
+  if (stage === 1) {
+    const task = currentTask();
+    const where = taskSpot() ? directionTo(taskSpot()) : "";
+    const text = {
+      patrol: `Border patrol: marker ${markersVisited + 1} of ${BORDER_MARKERS.length}`,
+      squirrel: "Hunt a squirrel (stalk with Shift, pounce with E)",
+      fish: `Catch fish at the water (${fishing.catches}/${FISH_FOR_TASK})`,
+      rogue: "Chase off the rogue",
+    }[task];
+    return `${mentorName()}'s task: ${text}.${where}`;
+  }
   if (choosingRole) return "Choose your path.";
   if (role === "Leader") return "You lead your clan. Give orders: 1 Follow, 2 Hunt, 3 Guard.";
   if (role === "Medicine cat") return "Pick herbs (E) and heal hurt clanmates in camp (E next to them).";
-  const need = LEADER_NEEDS[role];
-  let text = `To become leader: prey ${stats.hunts}/${need.hunts}, fights ${stats.fights}/${need.fights}.`;
-  if (rogue.state === "waiting") text += " A rogue is out there" + directionTo(rogue) + ".";
-  return text;
+  // R45: the way to deputy and leader
+  if (role === "Warrior") {
+    const n = DEPUTY_NEEDS;
+    return `To become deputy: prey ${stats.hunts}/${n.hunts}, fights ${stats.fights}/${n.fights}, ` +
+           `border patrol ${stats.patrols}/${n.patrols} (next marker${directionTo(BORDER_MARKERS[markersVisited])}).`;
+  }
+  const n = LEADER_NEEDS;
+  const lesson = trainee ? { hunt: `hunting lesson ${trainee.lessonCount}/${LESSON_HUNTS} (stay near prey)`,
+                             battle: `battle practice ${trainee.lessonCount}/${LESSON_HITS} (face ${trainee.name}, press E)`,
+                             patrol: `walk the border markers with ${trainee.name}` }[trainee.lesson] : "done";
+  return `To become leader: prey ${stats.hunts}/${n.hunts}, fights ${stats.fights}/${n.fights}, ` +
+         `train your apprentice: ${lesson}.`;
 }
 
 function setText(el, text) {
@@ -63,7 +87,12 @@ function setBar(el, value, max) {
 function updateHud() {
   setText($("task"), taskText());
   const phase = dayPhase();
-  setText($("clock"), `Day ${day} · ${clockText()} · ${phase[0].toUpperCase() + phase.slice(1)}`);
+  const sky = { clear: "Clear", rain: "Rain", fog: "Fog", wind: "Windy", storm: "Thunderstorm" }[weather];   // R30
+  setText($("clock"), `Day ${day} · ${clockText()} · ${phase[0].toUpperCase() + phase.slice(1)} · ${sky}`);
+
+  // R37: a leader's lives
+  $("lives").classList.toggle("hidden", !(playing && role === "Leader"));
+  if (role === "Leader") setText($("lives"), `Lives: ${"♥".repeat(Math.max(0, player.lives))} ${player.lives}`);
 
   // R16: whose land you are on
   const land = territoryAt(player.x, player.z);
@@ -99,6 +128,9 @@ function updateHud() {
   }
 
   $("main-menu").classList.toggle("hidden", !(playing && ui.menu));   // R26
+  // R37: after a game over the menu can only restart
+  setText($("main-menu-title"), ui.gameOver ? "You have lost all nine lives" : "Paused");
+  $("main-menu").querySelector("[data-action='resume']").classList.toggle("hidden", ui.gameOver);
   updatePouch();
   updateMap();
   updateFishingBox();
@@ -107,16 +139,33 @@ function updateHud() {
 function updateFishingBox() {
   $("fishing").classList.toggle("hidden", !fishing.active);
   if (!fishing.active) return;
-  const goal = stage === 1 ? ` · catches: ${fishing.catches} / 3` : "";
-  setText($("fishing-text"), `Fishing${goal}   (E to strike, Esc to stop)`);
-  const zone = $("fish-zone");
-  zone.style.width = `${fishZoneWidth() * 100}%`;
-  zone.style.left = `${(fishing.zone - fishZoneWidth() / 2) * 100}%`;
-  const fish = $("fish");
-  fish.style.left = `${fishing.marker * 100}%`;
-  fish.style.transform = `translateX(-50%) scaleX(${fishing.dir < 0 ? -1 : 1})`;
-  $("fish-water").className = fishing.flash > 0 ? (fishing.flashGood ? "good" : "bad") : "";
+  // R35: fishing is in 3D now; this only gives the instructions
+  const goal = currentTask() === "fish" ? ` · catches: ${fishing.catches} / ${FISH_FOR_TASK}` : "";
+  const splash = fishing.flash > 0 ? (fishing.flashGood ? " · Caught one!" : " · Splash! Missed.") : "";
+  setText($("fishing-text"), `Fishing${goal} · E when a fish is under your paw (the ripple) · Esc to stop${splash}`);
 }
+
+// ======================================================
+// Mouse look (R32): click the game to capture the mouse
+// ======================================================
+let mouseLocked = false;
+
+$("game").addEventListener("click", () => {
+  if (playing && !ui.menu && !choosingMentor && !choosingRole && $("game").requestPointerLock) $("game").requestPointerLock();
+});
+document.addEventListener("pointerlockchange", () => {
+  if (document.pointerLockElement === $("game")) {
+    mouseLocked = true;
+    return;
+  }
+  // The mouse was let go (Esc does this): open the main menu
+  if (mouseLocked && playing && !ui.menu) ui.menu = true;
+  mouseLocked = false;
+  updateHud();
+});
+document.addEventListener("mousemove", (e) => {
+  if (mouseLocked && playing && !ui.menu) lookWithMouse(e.movementX, e.movementY);
+});
 
 // ======================================================
 // Herb pouch (R18)
@@ -256,8 +305,7 @@ function buildMentorChoice() {
 }
 
 const ROLE_TEXT = {
-  "Warrior": "Hunt and fight for your clan. 5 prey and 3 fights make you leader.",
-  "Deputy": "The leader's right paw. Only 3 prey and 2 fights to become leader.",
+  "Warrior": "Hunt, fight and patrol for your clan. Earn deputy, train an apprentice, and become leader.",
   "Medicine cat": "Heal yourself and hurt clanmates with herbs. Medicine cats never become leader.",
 };
 
@@ -378,6 +426,7 @@ function showMenu() {
   ui.map = false;
   ui.pouch = false;
   ui.menu = false;
+  ui.gameOver = false;
   menuEl.classList.remove("hidden");
   hudEl.classList.add("hidden");
   for (const id of ["message", "role-choice", "mentor-choice", "fishing", "pouch", "map", "main-menu"]) $(id).classList.add("hidden");
