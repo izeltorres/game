@@ -51,6 +51,8 @@ Test after a change.
 - All checks, including earlier rounds', must pass before the work is done.
 - Run the full suite at least twice before finishing. Cats and prey move randomly, so a check can pass
   once and still be flaky.
+- When many unrelated checks fail at once, look first for one error thrown inside `update()`: it stops
+  the rest of that frame, including clearing the pressed keys.
 - There is no Node.js. Run the tests in headless Edge from Git Bash (absolute paths and a separate
   profile folder are required, or Edge prints nothing):
 
@@ -58,9 +60,10 @@ Test after a change.
   PROFILE="$(cygpath -w "$TEMP/edge-test-profile")"
   "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new \
     --enable-unsafe-swiftshader --use-angle=swiftshader --no-first-run "--user-data-dir=$PROFILE" \
-    --virtual-time-budget=120000 --dump-dom "file:///$(cygpath -w "$PWD/tests.html")" 2>/dev/null \
+    --virtual-time-budget=200000 --dump-dom "file:///$(cygpath -w "$PWD/tests.html")" 2>/dev/null \
     | grep -oE '<h2 id="summary"[^>]*>[^<]*|<li class="fail">[^<]*' | sed -E 's/<[^>]*>//'
   ```
 
   It prints the summary line (`ALL N TESTS PASSED`, or how many failed) and each failing check.
-  A full run takes a few minutes, so give the command a long timeout (or run it in the background).
+  A full run takes about 10 minutes, longer than a foreground command may run, so run it in the background
+  and wait for it to finish.

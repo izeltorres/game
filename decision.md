@@ -70,3 +70,10 @@
 - R55: the game fills the browser window.
 - R56: prey in camp is slower and less wary for kits.
 - R57: medicine cats get collecting quests, a herb store, treating clanmates, and ranks.
+
+## After Round 5 (2026-11-22) - answers to open questions
+
+- Leaders should be visible.
+- Rival clans' medicine cats should take care of their own clan.
+- Hut lighting is fine as it is (no change).
+- Beetles do count as prey, but only a small amount.
