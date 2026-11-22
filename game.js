@@ -50,16 +50,25 @@ const DODGE_COOLDOWN = 1;
 
 const FOOD_PER_UNIT = 0.2;       // food used per unit walked; running uses twice as much (R8)
 const STARVE_DAMAGE = 2;         // health lost per second when food is empty (R8)
-const PREY_FOOD = { beetle: 8, mouse: 20, squirrel: 40, fish: 30, freshKill: 10, pile: 25 };
+const PREY_FOOD = { beetle: 8, mouse: 20, vole: 18, sparrow: 15, squirrel: 40, rabbit: 45, hare: 70,
+                    fish: 30, freshKill: 10, pile: 25 };
 const PREY_RESPAWN = 10;         // seconds until caught small prey comes back (R13)
 
-// Small prey and the squirrel (R13): how close you can get before they notice,
-// how fast they run, how far you can reach to catch them
+// Prey (R13, R47): how close you can get before they notice, how fast they run, how far you can reach
+// to catch them. Bigger prey notices you sooner and runs faster.
 const PREY_KINDS = {
-  beetle:   { name: "beetle",   notice: 1,   stalkNotice: 0,   flee: 1.5, wander: 0.6, reach: 1.5, hideDist: 6,  hideTime: 3 },
-  mouse:    { name: "mouse",    notice: 5,   stalkNotice: 0.8, flee: 6,   wander: 2,   reach: 1.8, hideDist: 15, hideTime: 3 },
-  squirrel: { name: "squirrel", notice: 7,   stalkNotice: 1.2, flee: 8,   wander: 1.5, reach: 2.2, hideDist: 25, hideTime: 2.5 },
+  beetle:   { name: "beetle",   size: "tiny",   notice: 1,  stalkNotice: 0,   flee: 1.5, wander: 0.6, reach: 1.5, hideDist: 6,  hideTime: 3 },
+  mouse:    { name: "mouse",    size: "small",  notice: 5,  stalkNotice: 0.8, flee: 6,   wander: 2,   reach: 1.8, hideDist: 15, hideTime: 3 },
+  vole:     { name: "vole",     size: "small",  notice: 4.5, stalkNotice: 0.7, flee: 5.5, wander: 1.8, reach: 1.8, hideDist: 15, hideTime: 3 },
+  sparrow:  { name: "sparrow",  size: "small",  notice: 6,  stalkNotice: 1,   flee: 7,   wander: 2.2, reach: 1.8, hideDist: 15, hideTime: 3 },
+  squirrel: { name: "squirrel", size: "medium", notice: 7,  stalkNotice: 1.2, flee: 8,   wander: 1.5, reach: 2.2, hideDist: 25, hideTime: 2.5 },
+  rabbit:   { name: "rabbit",   size: "medium", notice: 8,  stalkNotice: 1.4, flee: 9,   wander: 2.2, reach: 2.2, hideDist: 25, hideTime: 3 },
+  hare:     { name: "hare",     size: "big",    notice: 10, stalkNotice: 1.6, flee: 11,  wander: 2.5, reach: 2.4, hideDist: 30, hideTime: 3 },
 };
+const KIT_PREY = ["beetle", "mouse"];   // the only prey that comes into camp for kits (R42)
+const KIT_PREY_WARINESS = 0.5;          // camp prey notices kits at half the distance (R56)
+const KIT_PREY_SPEED = 0.6;             // and moves slower (R56)
+const BIG_HUNT_PIECES = 4;              // a hare caught on a big hunt fills the pile this much (R47)
 
 // Herbs (R18)
 const HERBS = { marigold: { name: "Marigold", heal: 30 }, dock: { name: "Dock leaf", heal: 15 } };
@@ -112,13 +121,45 @@ const MARKER_RADIUS = 4;
 // Paths (R43): the player chooses one of these; warriors earn Deputy and then Leader (R45)
 const ROLES = ["Warrior", "Medicine cat"];
 const DEPUTY_NEEDS = { hunts: 5, fights: 3, patrols: 1 };
-const LEADER_NEEDS = { hunts: 3, fights: 2, trained: 1 };
+const LEADER_NEEDS = { hunts: 3, fights: 2, trained: 1, missions: 1 };   // missions: R49
 const LESSONS = ["hunt", "battle", "patrol"];   // training your own apprentice (R36, R39)
 const LESSON_HUNTS = 3;
 const LESSON_HITS = 3;
 const LEADER_LIVES = 9;            // R37
 const LIFE_SHIELD = 2;             // seconds nothing can hurt a leader after losing a life
-const ORDERS = { Digit1: "follow", Digit2: "hunt", Digit3: "guard" };
+const ORDERS = { Digit1: "follow", Digit2: "hunt", Digit3: "guard", Digit4: "bighunt" };
+
+// Gatherings (R48): the leader is called to the Great Oak in the middle of the world
+const GATHERING_TIME = 900;        // seconds between Gatherings
+const GATHERING_OPEN = 300;        // how long a call stays open
+const GATHERING_SPOT = { x: 0, z: 0 };
+const GATHERING_REACH = 8;         // how close to the oak the leader must come
+const TRUCE_RADIUS = 12;           // no cat attacks this close to the Great Oak (its clearing)
+const DECISION_TIME = 300;         // a leader's big decision comes about this often (R50)
+
+// Deputy missions (R49)
+const MISSION_TYPES = ["message", "stolen", "lostkit"];
+const MISSION_GAP = 30;
+
+// Rivalries (R54)
+const RIVALRY_START = 30;
+const RIVALRY_FRIENDLY = 20;       // below this their cats only warn you off
+const RIVALRY_HOSTILE = 70;        // from this they spot you sooner and raid your camp
+const HOSTILE_SIGHT = 20;
+const RAID_TIME = 240;
+const TRESPASS_TIME = 10;          // seconds on a rival's land for +1 rivalry
+
+// Medicine cats (R52, R57)
+const MEDICINE_NAMES = { own: "Thymeleaf", ThunderClan: "Larkpool", ShadowClan: "Reedmist", RiverClan: "Owlfeather", WindClan: "Heathsong" };
+const MEDICINE_HEAL_COOLDOWN = 60;
+const TREAT_AFTER = 30;            // the camp's medicine cat treats a cat hurt for this long
+const MED_RANKS = ["Medicine cat apprentice", "Medicine cat", "Senior medicine cat"];
+const MED_NEEDS = [{ quests: 1, treated: 2, store: 0 }, { quests: 1, treated: 3, store: 6 }];
+const MED_QUESTS = [{ marigold: 3, dock: 2 }, { marigold: 2, dock: 3 }];
+
+// Clicking herbs (R53)
+const AIM_REACH = 3.5;
+const AIM_CONE = 0.2;              // radians either side of the aiming dot
 
 // Kits living in camps (R31)
 const KIT_NAMES = ["Pebble", "Ember", "Sedge", "Wren"];
@@ -209,6 +250,25 @@ let trainee = null;         // the deputy's own apprentice (R36, R39)
 let weather = "clear";      // R30
 let weatherTimer = WEATHER_TIME;
 let boundaryWarned = -10;   // when the kit was last told to stay in camp
+let pendingChoice = null;   // a speech (R48) or decision (R50) waiting for the player; the game waits
+let gatheringTimer = GATHERING_TIME;
+const gathering = { called: false, open: 0 };
+let gatheringLeaders = [];  // the other clans' leaders at the Great Oak
+let decisionTimer = DECISION_TIME;
+let mission = null;         // the deputy's current mission (R49)
+let missionIndex = 0;
+let missionTimer = 0;
+let stolenPrey = null;      // { x, z, clan } for the stolen-prey mission
+const rivalry = {};         // other clans' rivalry with yours, 0-100 (R54)
+let trespassTimer = 0;
+let raidTimer = RAID_TIME;
+let raiders = [];           // rival cats raiding your camp
+let warnedAt = -10;         // when a friendly patrol last warned you off
+let medicineCats = [];      // one per camp (R52)
+let medRank = 0;            // the player's medicine cat rank (R57)
+let herbStore = 0;          // herbs kept in your medicine den
+let medQuest = null;        // the herbs Thymeleaf wants collected
+const questDeposited = { marigold: 0, dock: 0 };
 
 // Places for the player's own clan (filled in by resetGame)
 const CAMP = { x: 0, z: 0 };
@@ -222,7 +282,11 @@ const player = {};
 const squirrel = {};
 const rogue = {};
 const fishing = {};
-const stats = { hunts: 0, fights: 0, patrols: 0, trained: 0 };   // counted toward the next promotion (R45)
+const stats = {};   // counted toward the next promotion (R45, R49, R57); see resetStats()
+function resetStats() {
+  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0, missions: 0, quests: 0, treated: 0 });
+}
+resetStats();
 const ui = { map: false, pouch: false, menu: false, gameOver: false }; // map (R15), pouch (R18), main menu (R26, R37)
 let trees = [];
 let herbs = [];
@@ -296,13 +360,31 @@ function resetGame() {
   ui.menu = false;
   ui.gameOver = false;
   dropped = [];
-  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0 });
+  resetStats();
   Object.assign(kitCatches, { beetle: 0, mouse: 0 });
   taskIndex = 0;
   markersVisited = 0;
   trainee = null;
   weather = "clear";
   weatherTimer = WEATHER_TIME;
+  pendingChoice = null;
+  gatheringTimer = GATHERING_TIME;
+  Object.assign(gathering, { called: false, open: 0 });
+  gatheringLeaders = [];
+  decisionTimer = DECISION_TIME;
+  mission = null;
+  missionIndex = 0;
+  missionTimer = 0;
+  stolenPrey = null;
+  for (const c in CLANS) rivalry[c] = RIVALRY_START;
+  delete rivalry[clanName];
+  trespassTimer = 0;
+  raidTimer = RAID_TIME;
+  raiders = [];
+  medRank = 0;
+  herbStore = 0;
+  medQuest = null;
+  Object.assign(questDeposited, { marigold: 0, dock: 0 });
 
   // Places for this clan
   Object.assign(CAMP, campOf(clanName));
@@ -339,10 +421,15 @@ function resetGame() {
   prey = [];
   for (let i = 0; i < 6; i++) prey.push(makeCritter("beetle", prey.length));
   for (let i = 0; i < 4; i++) prey.push(makeCritter("mouse", prey.length));
+  // R47: bigger prey for apprentices and older (hidden while you are a kit)
+  for (let i = 0; i < 3; i++) prey.push(makeCritter("vole", prey.length));
+  for (let i = 0; i < 3; i++) prey.push(makeCritter("sparrow", prey.length));
+  for (let i = 0; i < 2; i++) prey.push(makeCritter("rabbit", prey.length));
   squirrel.slot = 0;
   campCats = buildCampCats();
   patrols = buildPatrols();
   kits = buildKits();
+  medicineCats = buildMedicineCats();
 }
 
 // ======================================================
@@ -434,6 +521,27 @@ function moveToward(body, target, speed, dt) {
   const fromHut = insideHut(body);
   const targetHut = insideHut(target);
   const doorHut = fromHut || targetHut || doorwayHut(body);   // standing in a doorway keeps that door open
+  // Stuck in a pocket (e.g. between a hut and the Highrock)? Walk along the obstacle for a moment.
+  if ((body.detour || 0) > 0) {
+    body.detour -= dt;
+    for (let k = 0; k < 4; k++) {
+      const h = body.detourHeading + k * 0.6 * side;
+      const trial = { x: body.x + Math.sin(h) * stepSize, z: body.z + Math.cos(h) * stepSize };
+      pushOutOfObstacles(trial, CAT_R, doorHut);
+      const trialHut = insideHut(trial);
+      if (!fromHut && trialHut && trialHut !== targetHut) continue;
+      if (distance(trial, body) > stepSize * 0.5) {
+        body.x = trial.x;
+        body.z = trial.z;
+        body.heading = h;
+        body.detourHeading = h;
+        body.walk = (body.walk || 0) + stepSize * 3;
+        body.moving = true;
+        return;
+      }
+    }
+    body.detour = 0;
+  }
   let best = null;
   for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.4, -2.4]) {
     const h = want + turn * side;
@@ -450,6 +558,17 @@ function moveToward(body, target, speed, dt) {
     body.z = best.trial.z;
     body.heading = best.h;
     if (best.turn !== 0) body.avoidSide = Math.sign(best.turn) * side;
+  }
+  // Every half second, check how much closer the cat really got (stepping back and forth in front of an
+  // obstacle can look like progress frame by frame). Hardly any: walk along the obstacle for a moment (above).
+  body.stuckClock = (body.stuckClock || 0) + dt;
+  if (body.stuckClock >= 0.5) {
+    if (body.lastTargetDist !== undefined && body.lastTargetDist - d < speed * 0.5 * 0.2 && d > 1) {
+      body.detour = 1.2;
+      body.detourHeading = want + (body.avoidSide || 1) * 1.6;
+    }
+    body.lastTargetDist = d;
+    body.stuckClock = 0;
   }
   body.walk = (body.walk || 0) + stepSize * 3;
   body.moving = true;
@@ -468,6 +587,7 @@ function catSize() {
 
 function rankName() {
   if (stage < 2) return STAGES[stage].rank;
+  if (role === "Medicine cat") return MED_RANKS[medRank];   // R57
   return role || "Apprentice";
 }
 
@@ -538,6 +658,7 @@ function buildTrees() {
     if (keep > density[place]) continue;
     if (nearRiver(x) || WATERS.some((w) => x > w.x0 - 4 && x < w.x1 + 4)) continue;   // not by the water
     if (Object.keys(CLANS).some((c) => distance({ x, z }, campOf(c)) < CAMP_CLEARING)) continue;  // camps are clearings
+    if (distance({ x, z }, GATHERING_SPOT) < 12) continue;   // the clearing around the Great Oak (R48)
     if (keepClear.some((p) => Math.hypot(x - p.x, z - p.z) < 5)) continue;
     list.push({ x, z, r, h: place === "moor" ? h * 0.6 : h, kind: kinds[place], phase });
   }
@@ -640,6 +761,8 @@ function buildHuts() {
 // The Highrock and a ring of stones around every camp, with gaps behind the huts (R23)
 function buildRocks() {
   const list = [];
+  // R48: the trunk of the Great Oak in the middle of the world
+  list.push({ kind: "greatoak", clan: null, x: GATHERING_SPOT.x, z: GATHERING_SPOT.z, r: 1.7 });
   for (const clan in CLANS) {
     const camp = campOf(clan);
     const highrock = spotFor(clan, ...HIGHROCK_SPOT);
@@ -688,7 +811,8 @@ function pushOutOfObstacles(body, radius, doorsOpenFor) {
     if (d < 0.0001 || Math.abs(d - h.R) >= radius + HUT_WALL) continue;   // not touching the wall
     const doorOpen = doorsOpenFor === undefined || doorsOpenFor === h;
     if (doorOpen && Math.abs(wrapAngle(Math.atan2(dx, dz) - h.door)) < HUT_DOOR) continue; // in the doorway
-    const keep = d < h.R ? h.R - radius - HUT_WALL : h.R + radius + HUT_WALL;  // stay on the side you are on
+    // stay on the side you are on ("inside" means the same here as in insideHut, so there is no gap between them)
+    const keep = d < h.R - 0.05 ? h.R - radius - HUT_WALL : h.R + radius + HUT_WALL;
     body.x = h.x + (dx / d) * keep;
     body.z = h.z + (dz / d) * keep;
   }
@@ -731,7 +855,7 @@ function update(dt) {
   if (playing && ui.menu) {
     // The main menu pauses the game (R26); after a game over it can't be closed (R37)
     if (pressed.Escape && !ui.gameOver) ui.menu = false;
-  } else if (playing && !choosingRole && !choosingMentor) {
+  } else if (playing && !choosingRole && !choosingMentor && !pendingChoice) {
     updateMenusKeys();
     updateDay(dt);
     updateWeather(dt);
@@ -747,6 +871,10 @@ function update(dt) {
     updateKits(dt);
     updateHerbs(dt);
     updateDropped(dt);
+    updateLeaderEvents(dt);
+    updateMissions(dt);
+    updateRivalry(dt);
+    updateMedicineCats(dt);
     if (stage === 2) updateClanmates(dt);
     updateCamera(dt);
   }
@@ -1075,7 +1203,7 @@ function allCritters() {
 // R30: rain keeps half the prey hidden and a thunderstorm keeps all of it hidden.
 // Squirrels never come into the camp for kits (R42).
 function preyAllowed(c) {
-  if (c === squirrel && stage === 0) return false;
+  if (stage === 0 && (c === squirrel || !KIT_PREY.includes(c.kind))) return false;   // only beetles and mice come into camp
   if (weather === "storm") return false;
   if (weather === "rain") return (c.slot || 0) % 2 === 0;
   return true;
@@ -1096,7 +1224,44 @@ function preyInReach() {
   return best;
 }
 
+// R47: the leader's big hunt - a hare appears and the clanmates surround it
+function startBigHunt() {
+  prey = prey.filter((p) => p.kind !== "hare");
+  // Somewhere about 15 away from the cat, on the side away from camp
+  const away = Math.atan2(player.x - CAMP.x, player.z - CAMP.z);
+  const spot = { x: player.x + Math.sin(away) * 15, z: player.z + Math.cos(away) * 15 };
+  keepInTerritory(spot, clanName);
+  pushOutOfObstacles(spot, 0.4, null);
+  const hare = makeCritter("hare", 0);
+  Object.assign(hare, spot, { state: "idle", timer: 2 });
+  keepCritterHome(hare);
+  prey.push(hare);
+  say("Big hunt! A hare is near. Your clanmates will surround it - then go in and catch it (E).", 4);
+}
+
+function theHare() {
+  return prey.find((p) => p.kind === "hare") || null;
+}
+
+// The three clanmates stand around the hare, leaving the side toward the leader open
+function hareSurrounded() {
+  const hare = theHare();
+  return !!hare && clanmates.length === 3 && clanmates.every((c) => distance(c, hare) < 5);
+}
+
 function catchPrey(c) {
+  if (c.kind === "hare") {
+    player.attackTimer = 0.3;
+    prey = prey.filter((p) => p !== c);
+    freshKill += BIG_HUNT_PIECES;
+    giveOrder("follow");
+    say(`You caught the hare! The clan will eat well: ${BIG_HUNT_PIECES} pieces on the fresh-kill pile.`, 4);
+    if (stage === 2 && role) {
+      stats.hunts++;
+      checkPromotion();
+    }
+    return;
+  }
   player.attackTimer = 0.3;
   const name = PREY_KINDS[c.kind].name;
   c.state = "hidden";
@@ -1207,9 +1372,13 @@ function updateCritter(c, dt) {
   }
   recordTrail(c, dt);
 
+  // R56: prey in camp is slower and less wary for kits
+  const kitCamp = stage === 0 && c !== squirrel;
+  const speed = kitCamp ? KIT_PREY_SPEED : 1;
+
   if (c.state === "fleeing") {
-    c.x += c.dirX * kind.flee * dt;
-    c.z += c.dirZ * kind.flee * dt;
+    c.x += c.dirX * kind.flee * speed * dt;
+    c.z += c.dirZ * kind.flee * speed * dt;
     keepCritterHome(c);
     c.hop += dt * 14;
     if (distance(c, player) > kind.hideDist || territoryAt(c.x, c.z) !== clanName ||
@@ -1221,7 +1390,13 @@ function updateCritter(c, dt) {
   }
 
   // Notice the player if they get too close without stalking
-  const radius = (player.crouching ? kind.stalkNotice : kind.notice) * stealthMult();
+  // R47: a hare surrounded by your clanmates on a big hunt has nowhere to run, so it just crouches
+  if (c.kind === "hare" && hareSurrounded()) {
+    c.state = "idle";
+    c.timer = 1;
+    return;
+  }
+  const radius = (player.crouching ? kind.stalkNotice : kind.notice) * stealthMult() * (kitCamp ? KIT_PREY_WARINESS : 1);
   if (distance(player, c) < radius) {
     scareCritter(c);
     return;
@@ -1242,8 +1417,8 @@ function updateCritter(c, dt) {
     }
   }
   if (c.state === "hopping") {
-    c.x += c.dirX * kind.wander * dt;
-    c.z += c.dirZ * kind.wander * dt;
+    c.x += c.dirX * kind.wander * speed * dt;
+    c.z += c.dirZ * kind.wander * speed * dt;
     keepCritterHome(c);
     pushOutOfObstacles(c, 0.3);
     c.hop += dt * 10;
@@ -1396,7 +1571,7 @@ function swipeAtFish() {
 // Fighting (R4, R16, R17): the rogue and other clans' patrols
 // ======================================================
 function fightingEnemies() {
-  return [rogue, ...patrols].filter((e) => e.state === "fighting");
+  return [rogue, ...patrols, ...raiders].filter((e) => e.state === "fighting");
 }
 
 // The nearest fighting enemy in front of the cat
@@ -1420,6 +1595,7 @@ function defeatEnemy(e) {
     beatRogue();
     return;
   }
+  if (e.clan && rivalry[e.clan] !== undefined) changeRivalry(e.clan, 5);   // R54
   e.state = "fleeing";
   e.fleeTimer = 3;
   if (stage === 2 && role) {
@@ -1597,7 +1773,9 @@ function updatePatrol(c, dt) {
     return;
   }
 
-  const playerOnTheirLand = territoryAt(player.x, player.z) === c.clan;
+  // They only go for you on their own land, and never near the Great Oak (R48) or while you carry them
+  // a message (R49)
+  const playerOnTheirLand = territoryAt(player.x, player.z) === c.clan && !truceWith(c.clan);
   if (c.state === "patrol") {
     if (c.mode === "camp" || weather === "storm") {
       // R29: camp cats wander around their camp, and defend it (R30: in a storm the patrols stay home too)
@@ -1611,7 +1789,14 @@ function updatePatrol(c, dt) {
       c.angle += dt * 0.12;
       moveToward(c, patrolPoint(c), 2.5, dt);
     }
-    if (playerOnTheirLand && distance(c, player) < PATROL_SIGHT) {
+    // R54: friendly clans warn you off; hostile ones spot you from further away
+    const sight = rivalry[c.clan] >= RIVALRY_HOSTILE ? HOSTILE_SIGHT : PATROL_SIGHT;
+    if (playerOnTheirLand && distance(c, player) < sight && rivalry[c.clan] < RIVALRY_FRIENDLY) {
+      if (time - warnedAt > 5) {
+        warnedAt = time;
+        say(`A ${c.clan} cat warns you off their territory. They are friendly with your clan, for now.`, 2.5);
+      }
+    } else if (playerOnTheirLand && distance(c, player) < sight) {
       c.state = "fighting";
       c.windup = 0;
       say(c.mode === "camp" ? `${c.clan} cats defend their camp!` : `A ${c.clan} patrol attacks! You are on their territory.`, 2.5);
@@ -1753,11 +1938,13 @@ function chooseRole(choice) {
   role = choice;
   choosingRole = false;
   warriorSuffix = WARRIOR_SUFFIXES[Math.floor(Math.random() * WARRIOR_SUFFIXES.length)];
-  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0 });
+  resetStats();
   markersVisited = 0;
   const ceremony = `Your clan leader calls the clan together: "From this day on you will be known as ${fullName()}."`;
   if (role === "Medicine cat") {
-    say(`${ceremony} You are ${clanName}'s medicine cat. Keep herbs in your pouch (H) and heal hurt clanmates with E.`, 6);
+    // R57: you start as Thymeleaf's apprentice, with a collecting quest
+    medRank = 0;
+    giveMedQuest(`${MEDICINE_NAMES.own}: Welcome, ${fullName()}. The clan leader has named you, and you are my medicine cat apprentice now. `);
   } else {
     say(`${ceremony} To become deputy: catch ${DEPUTY_NEEDS.hunts} prey, win ${DEPUTY_NEEDS.fights} fights ` +
         `and lead a border patrol.`, 6);
@@ -1771,15 +1958,19 @@ function checkPromotion() {
     if (stats.hunts >= need.hunts && stats.fights >= need.fights && stats.patrols >= need.patrols) promote("Deputy");
   } else if (role === "Deputy") {
     const need = LEADER_NEEDS;
-    if (stats.hunts >= need.hunts && stats.fights >= need.fights && stats.trained >= need.trained) promote("Leader");
+    if (stats.hunts >= need.hunts && stats.fights >= need.fights && stats.trained >= need.trained &&
+        stats.missions >= need.missions) promote("Leader");
   }
 }
 
 function promote(newRole) {
   role = newRole;
-  Object.assign(stats, { hunts: 0, fights: 0, patrols: 0, trained: 0 });
+  resetStats();
   markersVisited = 0;
   if (newRole === "Deputy") {
+    missionIndex = 0;
+    startMission();   // R49: the first mission comes straight away
+    const missionText = lastMessage;
     // R36, R39: one of the camp's kits becomes the new deputy's apprentice
     trainee = kits.find((k) => k.clan === clanName && k.lesson === null) || null;
     if (trainee) {
@@ -1789,11 +1980,22 @@ function promote(newRole) {
       trainee.lessonCount = 0;
     }
     say(`You are now deputy of ${clanName}! ${trainee ? trainee.name + " is your apprentice. " : ""}` +
-        `To become leader: catch ${LEADER_NEEDS.hunts} prey, win ${LEADER_NEEDS.fights} fights and train your apprentice. ` +
-        `First lesson: take it hunting.`, 6);
+        `To become leader: catch ${LEADER_NEEDS.hunts} prey, win ${LEADER_NEEDS.fights} fights, train your apprentice ` +
+        `and complete a mission. First lesson: take it hunting. ${missionText}`, 8);
     return;
   }
   // Leader (R37: nine lives; R9: three clanmates to give orders to)
+  if (trainee) {
+    // An apprentice still in training finishes as a warrior when its mentor becomes leader
+    trainee.lesson = "done";
+    trainee.name = trainee.baseName + WARRIOR_SUFFIXES[(KIT_NAMES.indexOf(trainee.baseName) + 3) % WARRIOR_SUFFIXES.length];
+    trainee.size = 0.95;
+    trainee = null;
+  }
+  mission = null;
+  stolenPrey = null;
+  gatheringTimer = GATHERING_TIME;   // R48
+  decisionTimer = DECISION_TIME;     // R50
   player.lives = LEADER_LIVES;
   const furs = [FURS.Grey, FURS.Brown, FURS.Cream];
   clanmates = furs.map((fur, i) => ({
@@ -1862,7 +2064,7 @@ function updateTrainee(t, dt) {
   }
   const spot = behindPlayer(2, -1.2);
   const d = distance(t, spot);
-  if (d > 0.4) moveToward(t, spot, Math.min(d * 3, 5.5), dt);
+  if (d > 0.4) moveToward(t, spot, Math.min(d * 3, 7), dt);   // runs to catch up when far behind
   else t.moving = false;
 }
 
@@ -1871,6 +2073,12 @@ function updateTrainee(t, dt) {
 // ======================================================
 function updateKits(dt) {
   for (const k of kits) {
+    if (k.lost) {
+      // R49: a lost kit waits where it is until found, then runs after you
+      if (k.following) moveToward(k, behindPlayer(1.5, 1), Math.min(distance(k, player) * 3, 7), dt);
+      else k.moving = false;
+      continue;
+    }
     if (k === trainee) {
       updateTrainee(k, dt);
       continue;
@@ -1934,6 +2142,8 @@ function giveOrder(newOrder) {
   if (role !== "Leader") return;
   order = newOrder;
   clanmates.forEach((c, i) => { c.timer = 12 + i * 3; });
+  if (newOrder === "bighunt") startBigHunt();   // R47
+  else prey = prey.filter((p) => p.kind !== "hare");
 }
 
 // A spot behind the player, `side` to the right
@@ -1947,6 +2157,13 @@ function behindPlayer(back, side) {
 // Where each leader's clanmate wants to stand right now
 function clanmateTarget(c, i) {
   if (order === "follow") return behindPlayer(2.5, (i - 1) * 1.6);
+  // R47: surround the hare - behind it and on both sides, leaving the side toward the leader open
+  if (order === "bighunt" && theHare()) {
+    const h = theHare();
+    const fromLeader = Math.atan2(h.x - player.x, h.z - player.z);
+    const a = fromLeader + (i - 1) * 1.6;
+    return { x: h.x + Math.sin(a) * 3, z: h.z + Math.cos(a) * 3 };
+  }
   if (order === "guard") {
     const angle = (i / 3) * Math.PI * 2;
     return { x: CAMP.x + Math.sin(angle) * 3.5, z: CAMP.z + Math.cos(angle) * 3.5 };
@@ -2076,6 +2293,10 @@ function healClanmate(c) {
   c.injured = false;
   c.hp = 100;
   say(`You treat ${c.name} with ${HERBS[kind].name.toLowerCase()}. ${c.name} thanks you!`, 2.5);
+  if (isMedicine()) {
+    stats.treated++;   // R57
+    checkMedRank();
+  }
 }
 
 function updateHerbs(dt) {
@@ -2116,6 +2337,13 @@ function useDen(den) {
 }
 
 function useFreshKill() {
+  if (player.carrying && mission && mission.type === "stolen" && mission.carried) {
+    // R49: the stolen rabbit is back where it belongs
+    player.carrying = null;
+    freshKill++;
+    completeMission("You put the stolen rabbit back on your fresh-kill pile.");
+    return;
+  }
   if (player.carrying) {
     say(`You drop the ${player.carrying} on the fresh-kill pile for your clan.`, 2);
     player.carrying = null;
@@ -2139,6 +2367,32 @@ function tryInteract() {
     say(`You pick up the ${lying.kind}.`, 1.5);
     return true;
   }
+  // R49: take back the stolen rabbit, or find the lost kit
+  if (mission && mission.type === "stolen" && !mission.carried && stolenPrey && distance(player, stolenPrey) < 1.5 && !player.carrying) {
+    mission.carried = true;
+    stolenPrey.taken = true;
+    player.carrying = "rabbit";
+    changeRivalry(mission.clan, 5);   // R54
+    say("You grab the stolen rabbit. Now get it home to the fresh-kill pile!", 2.5);
+    return true;
+  }
+  if (mission && mission.type === "lostkit" && !mission.kit.following && distance(player, mission.kit) < 2) {
+    mission.kit.following = true;
+    say(`${mission.kit.name} is so glad to see you! It follows you home.`, 2.5);
+    return true;
+  }
+  // R52: your clan's medicine cat heals you
+  const medic = ownMedicineCat();
+  if (medic && distance(player, medic) < 2 && !isMedicine()) {
+    if (medic.healCooldown > 0 || player.hp >= 100) {
+      say(player.hp >= 100 ? `${medic.name}: You look healthy to me.` : `${medic.name}: Rest a while; I can't treat you again so soon.`, 2);
+    } else {
+      player.hp = 100;
+      medic.healCooldown = MEDICINE_HEAL_COOLDOWN;
+      say(`${medic.name} checks you over and treats your wounds.`, 2.5);
+    }
+    return true;
+  }
   const hurt = campCats.find((c) => c.injured && distance(player, c) < 2);
   if (hurt) {
     if (role === "Medicine cat") {
@@ -2159,6 +2413,11 @@ function tryInteract() {
   // Inside one of your camp's huts (R25): rest if it is your den
   const den = insideHut(player);
   if (den && den.clan === clanName) {
+    // R57: a medicine cat puts herbs into the store in the medicine den
+    if (den.id === "medicine" && isMedicine() && pouchCount() > 0) {
+      depositHerbs();
+      return true;
+    }
     useDen(den);
     return true;
   }
@@ -2173,6 +2432,10 @@ function dropPrey() {
   player.dropTimer = DROP_TIME;
   if (distance(player, FRESH_KILL) < 1.8) {
     freshKill++;
+    if (mission && mission.type === "stolen" && mission.carried) {
+      completeMission("You put the stolen rabbit back on your fresh-kill pile.");   // R49
+      return;
+    }
     say(`You drop the ${kind} on the fresh-kill pile for your clan.`, 2);
     return;
   }
@@ -2196,6 +2459,393 @@ function restartGame() {
   resetGame();
   playing = true;
   ui.menu = false;
+}
+
+// ======================================================
+// Choices (R48 speeches, R50 decisions): shown by script.js; the game waits until one is picked
+// ======================================================
+function chooseOption(i) {
+  if (!pendingChoice || !pendingChoice.options[i]) return;
+  const choice = pendingChoice;
+  pendingChoice = null;
+  choice.options[i].apply();
+  if (choice.kind === "speech") Object.assign(gathering, { called: false, open: 0 });
+}
+
+function changeRivalry(clan, amount) {
+  if (rivalry[clan] === undefined) return;
+  rivalry[clan] = clamp(rivalry[clan] + amount, 0, 100);
+}
+
+function otherClans() {
+  return Object.keys(CLANS).filter((c) => c !== clanName);
+}
+
+// ======================================================
+// Gatherings (R48) and big decisions (R50) - for leaders
+// ======================================================
+function updateLeaderEvents(dt) {
+  if (role !== "Leader") return;
+  // The full-moon Gathering
+  if (!gathering.called) {
+    gatheringTimer -= dt;
+    if (gatheringTimer <= 0) {
+      gatheringTimer = GATHERING_TIME;
+      Object.assign(gathering, { called: true, open: GATHERING_OPEN });
+      say("Tonight is the full-moon Gathering! Go to the Great Oak in the middle of the forest, where the four territories meet.", 5);
+    }
+  } else {
+    gathering.open -= dt;
+    if (gathering.open <= 0) {
+      Object.assign(gathering, { called: false, open: 0 });
+      say("You missed the Gathering. The other clans noticed.", 3);
+      otherClans().forEach((c) => changeRivalry(c, 5));
+    } else if (distance(player, GATHERING_SPOT) < GATHERING_REACH && !pendingChoice) {
+      startGathering();
+    }
+  }
+  // Big decisions
+  decisionTimer -= dt;
+  if (decisionTimer <= 0 && !pendingChoice) {
+    decisionTimer = DECISION_TIME;
+    const ids = Object.keys(DECISIONS);
+    triggerDecision(ids[Math.floor(Math.random() * ids.length)]);
+  }
+}
+
+function startGathering() {
+  // The other leaders stand around the Great Oak
+  gatheringLeaders = otherClans().map((clan, i) => {
+    const a = i * 2.1 + 0.6;
+    return { clan, name: CLAN_LEADER_NAMES[clan], x: GATHERING_SPOT.x + Math.sin(a) * 5, z: GATHERING_SPOT.z + Math.cos(a) * 5,
+             heading: a + Math.PI, look: { fur: PATROL_FURS[clan][0], eyes: EYES.Yellow, pattern: "Solid" } };
+  });
+  const news = gatheringLeaders.map((l) => {
+    const r = rivalry[l.clan];
+    const mood = r >= RIVALRY_HOSTILE ? "glares at you" : (r < RIVALRY_FRIENDLY ? "greets you warmly" : "nods stiffly");
+    return `${l.name} of ${l.clan} ${mood} and says the prey is ${r >= RIVALRY_HOSTILE ? "thin and their borders need guarding" : "running well"}.`;
+  }).join(" ");
+  const mostRival = otherClans().sort((a, b) => rivalry[b] - rivalry[a])[0];
+  pendingChoice = {
+    kind: "speech",
+    title: "The full-moon Gathering",
+    text: `${news} Now it is your turn to speak.`,
+    options: [
+      { label: "Speak of peace between the clans", apply: () => { otherClans().forEach((c) => changeRivalry(c, -15)); say("Your words calm the clans.", 3); } },
+      { label: "Boast of your clan's strength", apply: () => { otherClans().forEach((c) => changeRivalry(c, 10)); freshKill += 2; say("Your clanmates walk home proud and hunt hard.", 3); } },
+      { label: `Warn ${mostRival} off your border`, apply: () => {
+        otherClans().forEach((c) => changeRivalry(c, c === mostRival ? 15 : -5));
+        say(`${mostRival} bristles; the others respect your firmness.`, 3);
+      } },
+    ],
+  };
+}
+
+const CLAN_LEADER_NAMES = { ThunderClan: "Oakstar", ShadowClan: "Nightstar", WindClan: "Gorsestar", RiverClan: "Brookstar" };
+
+// R50: things that happen to the clan; each choice changes the whole clan
+const DECISIONS = {
+  sickness: () => ({
+    title: "Sickness in camp",
+    text: "Coughing has spread through the camp.",
+    options: [
+      { label: "Send cats out for herbs", apply: () => { herbStore += 2; freshKill = Math.max(0, freshKill - 1); } },
+      { label: "Rest and wait", apply: () => hurtCampCats(2) },
+    ],
+  }),
+  stray: () => ({
+    title: "A stray kit",
+    text: "A patrol found a lost kit at the border, crying for its mother.",
+    options: [
+      { label: "Take it in", apply: () => { addStrayKit(); freshKill = Math.max(0, freshKill - 1); } },
+      { label: "Send it away", apply: () => {} },
+    ],
+  }),
+  theft: () => {
+    const clan = otherClans()[Math.floor(Math.random() * 3)];
+    return {
+      clan,
+      title: "Prey stolen",
+      text: `${clan} cats were seen taking prey from your territory.`,
+      options: [
+        { label: "Raid their camp", apply: () => { freshKill += 2; changeRivalry(clan, 20); } },
+        { label: "Let it go", apply: () => { freshKill = Math.max(0, freshKill - 2); } },
+        { label: "Complain at the Gathering", apply: () => changeRivalry(clan, -5) },
+      ],
+    };
+  },
+  scarce: () => ({
+    title: "Prey is scarce",
+    text: "A cold spell has driven the prey underground.",
+    options: [
+      { label: "Send extra hunting patrols", apply: () => { freshKill += 2; hurtCampCats(1); } },
+      { label: "Share what we have", apply: () => {} },
+    ],
+  }),
+};
+
+function triggerDecision(id) {
+  pendingChoice = Object.assign({ kind: "decision" }, DECISIONS[id]());
+  clearKeys();
+}
+
+function hurtCampCats(n) {
+  campCats.filter((c) => !c.injured && !isFollowingMentor(c)).slice(0, n).forEach((c) => {
+    Object.assign(c, { injured: true, hp: 40, injuredTime: 0 });
+  });
+}
+
+function addStrayKit() {
+  const name = ["Moss", "Fern", "Rook", "Hazel"][kits.length % 4];
+  const a = Math.random() * Math.PI * 2;
+  kits.push({ clan: clanName, baseName: name, name: name + "kit", size: 0.45, lesson: null,
+              x: CAMP.x + Math.sin(a) * 2, z: CAMP.z + Math.cos(a) * 2, heading: a, walk: 0, moving: false,
+              activity: "wander", timer: 1, target: null, home: CAMP, look: { fur: FURS.Grey, eyes: EYES.Blue, pattern: "Tabby" } });
+  say(`${name}kit joins your clan.`, 2.5);
+}
+
+// The Great Oak's truce (R48), and the clan you carry a message to (R49), mean nobody attacks
+function truceWith(clan) {
+  if (distance(player, GATHERING_SPOT) < TRUCE_RADIUS) return true;
+  return !!mission && mission.type === "message" && mission.clan === clan;
+}
+
+// ======================================================
+// Deputy missions (R49)
+// ======================================================
+function updateMissions(dt) {
+  if (role !== "Deputy") return;
+  if (!mission) {
+    missionTimer -= dt;
+    if (missionTimer <= 0) startMission();
+    return;
+  }
+  if (mission.type === "message" && distance(player, mission.target) < 6) {
+    completeMission(`You deliver the message to ${mission.clan}. They let you leave in peace.`);
+  }
+  if (mission.type === "lostkit") {
+    const k = mission.kit;
+    if (k.following && distance(k, CAMP) < KIT_BOUNDARY) {
+      k.lost = false;
+      k.following = false;
+      k.home = CAMP;
+      completeMission(`${k.name} is safe at home!`);
+    }
+  }
+}
+
+function startMission() {
+  const type = MISSION_TYPES[missionIndex % MISSION_TYPES.length];
+  const clan = otherClans()[missionIndex % 3];
+  missionIndex++;
+  mission = { type, clan, target: campOf(clan) };
+  if (type === "message") {
+    say(`Mission: carry a message to the ${clan} camp. Their cats will let you pass.`, 4);
+  } else if (type === "stolen") {
+    stolenPrey = Object.assign({ clan }, spotFor(clan, -15, -20));
+    mission.target = stolenPrey;
+    say(`Mission: ${clan} stole a rabbit. Find it on their land, take it (E) and bring it to your fresh-kill pile.`, 4);
+  } else {
+    const k = kits.find((x) => x.clan === clanName && x.lesson === null && x !== trainee && !x.lost);
+    if (!k) {
+      completeMission("All your kits are safe.");
+      return;
+    }
+    Object.assign(k, spotFor(clan, -25, -25), { lost: true, following: false });
+    k.home = campOf(clan);   // until found it stays where it is
+    mission.kit = k;
+    mission.target = k;
+    say(`Mission: ${k.name} has wandered into ${clan} territory! Find it, press E, and bring it home.`, 4);
+  }
+}
+
+function completeMission(text) {
+  mission = null;
+  stolenPrey = null;
+  missionTimer = MISSION_GAP;
+  stats.missions++;
+  say(`${text} (missions done: ${stats.missions})`, 3);
+  checkPromotion();
+}
+
+// ======================================================
+// Rivalries (R54): trespassing, and raids by hostile clans
+// ======================================================
+function updateRivalry(dt) {
+  const land = territoryAt(player.x, player.z);
+  if (land !== clanName && !truceWith(land)) {
+    trespassTimer += dt;
+    if (trespassTimer >= TRESPASS_TIME) {
+      trespassTimer -= TRESPASS_TIME;
+      changeRivalry(land, 1);
+    }
+  } else {
+    trespassTimer = 0;
+  }
+  raidTimer -= dt;
+  if (raidTimer <= 0) {
+    raidTimer = RAID_TIME;
+    const hostile = otherClans().filter((c) => rivalry[c] >= RIVALRY_HOSTILE).sort((a, b) => rivalry[b] - rivalry[a])[0];
+    if (hostile && raiders.length === 0) startRaid(hostile);
+  }
+  raiders.forEach((r) => updateRaider(r, dt));
+  raiders = raiders.filter((r) => r.state !== "gone");
+}
+
+function startRaid(clan) {
+  const away = Math.atan2(campOf(clan).x - CAMP.x, campOf(clan).z - CAMP.z);
+  raiders = [0, 1].map((i) => ({
+    clan, mode: "raid", state: "raid", hp: PATROL_HP, heading: 0, walk: 0, moving: false, windup: 0, cooldown: 0,
+    hurtTimer: 0, stagger: 0, fleeTimer: 0, stolen: false,
+    x: CAMP.x + Math.sin(away + (i - 0.5) * 0.4) * (STONE_RING + 3), z: CAMP.z + Math.cos(away + (i - 0.5) * 0.4) * (STONE_RING + 3),
+    look: { fur: PATROL_FURS[clan][i], eyes: EYES.Yellow, pattern: "Tabby" },
+  }));
+  say(`${clan} is raiding your camp! Drive them off before they steal your fresh-kill.`, 4);
+}
+
+function updateRaider(r, dt) {
+  r.hurtTimer = Math.max(0, r.hurtTimer - dt);
+  r.stagger = Math.max(0, r.stagger - dt);
+  if (r.state === "fleeing") {
+    // Run home and disappear
+    moveToward(r, campOf(r.clan), 7, dt);
+    r.fleeTimer -= dt;
+    if (r.fleeTimer <= 0) r.state = "gone";
+    return;
+  }
+  if (r.state === "fighting") {
+    if (distance(player, r) > 20) r.state = "raid";
+    else fightStep(r, dt);
+    return;
+  }
+  // Raiding: go for the fresh-kill pile; fight you if you come close
+  if (distance(player, r) < PATROL_SIGHT && !truceWith(r.clan)) {
+    r.state = "fighting";
+    return;
+  }
+  moveToward(r, FRESH_KILL, 4, dt);
+  if (distance(r, FRESH_KILL) < 1.5) {
+    if (freshKill > 0) freshKill--;
+    say(`The ${r.clan} raiders grab fresh-kill and run!`, 2.5);
+    r.state = "fleeing";
+    r.fleeTimer = 6;
+    raiders.forEach((o) => { if (o.state === "raid") { o.state = "fleeing"; o.fleeTimer = 6; } });
+  }
+}
+
+// ======================================================
+// Medicine cats (R52, R57)
+// ======================================================
+function buildMedicineCats() {
+  return Object.keys(CLANS).map((clan) => {
+    const den = huts.find((h) => h.clan === clan && h.id === "medicine");
+    const spot = { x: den.x + Math.sin(den.door) * (den.R + 1), z: den.z + Math.cos(den.door) * (den.R + 1) };
+    return Object.assign({ clan, name: clan === clanName ? MEDICINE_NAMES.own : MEDICINE_NAMES[clan], home: spot,
+                           heading: den.door, walk: 0, moving: false, patient: null, healCooldown: 0,
+                           look: { fur: "#a89878", eyes: EYES.Green, pattern: "Patches" } }, spot);
+  });
+}
+
+function isMedicine() {
+  return role === "Medicine cat";
+}
+
+function ownMedicineCat() {
+  return medicineCats.find((m) => m.clan === clanName);
+}
+
+function updateMedicineCats(dt) {
+  for (const c of campCats) if (c.injured) c.injuredTime = (c.injuredTime || 0) + dt;
+  for (const m of medicineCats) {
+    m.healCooldown = Math.max(0, m.healCooldown - dt);
+    if (m.clan === clanName && !isMedicine()) {
+      // R52: treat a camp cat that has been hurt for a while
+      if (!m.patient) m.patient = campCats.find((c) => c.injured && c.injuredTime >= TREAT_AFTER) || null;
+      if (m.patient) {
+        if (!m.patient.injured) { m.patient = null; continue; }
+        moveToward(m, m.patient, 3, dt);
+        if (distance(m, m.patient) < 1.5) {
+          if (herbStore > 0) herbStore--;
+          Object.assign(m.patient, { injured: false, hp: 100, injuredTime: 0 });
+          m.patient = null;
+        }
+        continue;
+      }
+    }
+    // Otherwise stay by the medicine den
+    if (distance(m, m.home) > 0.3) moveToward(m, m.home, 2, dt);
+    else m.moving = false;
+  }
+}
+
+// R57: Thymeleaf hands out herb collecting quests
+function giveMedQuest(intro) {
+  medQuest = Object.assign({}, MED_QUESTS[medRank % MED_QUESTS.length]);
+  Object.assign(questDeposited, { marigold: 0, dock: 0 });
+  say(`${intro || MEDICINE_NAMES.own + ": "}Collect ${medQuest.marigold} marigold and ${medQuest.dock} dock leaf, and put them in the store in our medicine den.`, 5);
+}
+
+// Inside the medicine den, E puts the pouch's herbs into the herb store (R57)
+function depositHerbs() {
+  const moved = pouchCount();
+  if (moved === 0) {
+    say(`The herb store holds ${herbStore} herbs. Bring herbs in your pouch to add to it.`, 2.5);
+    return;
+  }
+  questDeposited.marigold += player.pouch.marigold;
+  questDeposited.dock += player.pouch.dock;
+  herbStore += moved;
+  player.pouch = { marigold: 0, dock: 0 };
+  if (medQuest && questDeposited.marigold >= medQuest.marigold && questDeposited.dock >= medQuest.dock) {
+    stats.quests++;
+    medQuest = null;
+    say(`${MEDICINE_NAMES.own}: Well gathered! The store now holds ${herbStore} herbs.`, 3);
+    checkMedRank();
+    if (!medQuest) giveMedQuest();
+  } else {
+    say(`You put ${moved} herbs in the store (${herbStore} now).`, 2);
+  }
+}
+
+function checkMedRank() {
+  const need = MED_NEEDS[medRank];
+  if (!isMedicine() || !need) return;
+  if (stats.quests >= need.quests && stats.treated >= need.treated && herbStore >= need.store) {
+    medRank++;
+    resetStats();
+    say(`${MEDICINE_NAMES.own}: You have learned well. You are now ${fullName()}, ${MED_RANKS[medRank].toLowerCase()} of ${clanName}!`, 5);
+    if (medRank < MED_RANKS.length - 1) giveMedQuest();
+  }
+}
+
+// ======================================================
+// Clicking herbs (R53): the herb under the aiming dot in the middle of the screen
+// ======================================================
+function aimedHerb() {
+  const cam = cameraFor();
+  const look = { x: cam.lookX - cam.x, y: cam.lookY - cam.y, z: cam.lookZ - cam.z };
+  const lookLen = Math.hypot(look.x, look.y, look.z);
+  let best = null;
+  let bestAngle = AIM_CONE;
+  for (const h of herbs) {
+    if (!h.ready || distance(player, h) > AIM_REACH) continue;
+    const to = { x: h.x - cam.x, y: 0.25 - cam.y, z: h.z - cam.z };
+    const toLen = Math.hypot(to.x, to.y, to.z);
+    const angle = Math.acos(clamp((look.x * to.x + look.y * to.y + look.z * to.z) / (lookLen * toLen), -1, 1));
+    if (angle < bestAngle) {
+      best = h;
+      bestAngle = angle;
+    }
+  }
+  return best;
+}
+
+function clickToPick() {
+  if (!playing || ui.menu || pendingChoice || choosingRole || choosingMentor) return false;
+  const h = aimedHerb();
+  if (!h) return false;
+  pickHerb(h);
+  return true;
 }
 
 // ======================================================
