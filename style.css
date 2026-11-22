@@ -605,3 +605,100 @@ h3 {
   font-size: 14px;
   color: #ff8a8a;
 }
+
+/* ---------- Round 5 ---------- */
+/* R55: the game fills the whole window */
+body {
+  padding: 0;
+  overflow: hidden;
+}
+
+#wrap {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  aspect-ratio: auto;
+}
+
+#game {
+  border-radius: 0;
+}
+
+/* R53: the aiming dot in the middle of the screen; it brightens over an herb */
+#aim {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 2px #000;
+  pointer-events: none;
+}
+
+#aim.on-herb {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  background: #b8f070;
+}
+
+/* R49: the deputy's mission */
+#mission {
+  background: rgba(60, 40, 10, 0.75);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #ffd890;
+}
+
+/* R48, R50: speeches and decisions */
+#choice {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 520px;
+  max-width: 92%;
+  padding: 16px 24px;
+  border: 2px solid #e9c46a;
+  border-radius: 10px;
+  background: rgba(14, 22, 12, 0.95);
+  text-align: center;
+}
+
+#choice h2 {
+  margin: 0 0 8px;
+  color: #e9c46a;
+}
+
+#choice p {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+#choice-options button {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* R55: the controls list in the main menu */
+#controls-help {
+  max-width: 520px;
+  font-size: 13px;
+  text-align: left;
+  opacity: 0.9;
+}
+
+#controls-help h3 {
+  margin: 6px 0 2px;
+}
+
+#controls-help p {
+  margin: 2px 0;
+}

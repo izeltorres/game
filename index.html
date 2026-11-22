@@ -18,6 +18,7 @@
       <div id="lives" class="hidden"></div>
       <div id="orders" class="hidden"></div>
       <div id="scent" class="hidden"></div>
+      <div id="mission" class="hidden"></div>
       <div id="rogue-bar" class="bar hidden"><div class="fill"></div><span>Enemy</span></div>
       <!-- Health and food along the bottom (R8) -->
       <div id="bars">
@@ -62,7 +63,18 @@
       <button data-action="resume">Resume</button>
       <button data-action="restart">Restart</button>
       <button data-action="newcat">New cat</button>
+      <div id="controls-help"></div>
       <p class="hint">Esc to close</p>
+    </div>
+
+    <!-- Aiming dot for clicking herbs (R53) -->
+    <div id="aim" class="hidden"></div>
+
+    <!-- A speech at the Gathering (R48) or a leader's decision (R50) -->
+    <div id="choice" class="hidden">
+      <h2 id="choice-title"></h2>
+      <p id="choice-text"></p>
+      <div id="choice-options"></div>
     </div>
 
     <!-- Short pop-up messages -->
@@ -103,12 +115,6 @@
     </div>
   </div>
 
-  <p id="controls">
-    Walk: W/&uarr; (tap twice to run) &middot; Back: S/&darr; &middot; Turn: A/D or &larr;/&rarr; &middot;
-    Stalk: Shift &middot; Jump: Space &middot; Action: E &middot; Scent: hold Q &middot; Map: M &middot; Herbs: H<br>
-    Fight: E swipe &middot; C dodge &middot; F pounce attack &middot; R bite &middot;
-    Drop prey: G &middot; Look up/down: click the game, then move the mouse &middot; Climb: walk into a tree &middot; Leader orders: 1 / 2 / 3 &middot; Menu: Esc (stops fishing while fishing)
-  </p>
 
   <!-- Three.js draws the 3D world (free, from a CDN) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

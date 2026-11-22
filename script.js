@@ -58,8 +58,18 @@ function mainTask() {
     return `${mentorName()}'s task: ${text}.${where}`;
   }
   if (choosingRole) return "Choose your path.";
-  if (role === "Leader") return "You lead your clan. Give orders: 1 Follow, 2 Hunt, 3 Guard.";
-  if (role === "Medicine cat") return "Pick herbs (E) and heal hurt clanmates in camp (E next to them).";
+  if (role === "Leader") {
+    if (gathering.called) return `Go to the Gathering at the Great Oak${directionTo(GATHERING_SPOT)}. Orders: 1 Follow, 2 Hunt, 3 Guard, 4 Big hunt.`;
+    return "You lead your clan. Orders: 1 Follow, 2 Hunt, 3 Guard, 4 Big hunt.";
+  }
+  if (role === "Medicine cat") {
+    // R57: medicine cat tasks and ranks
+    const need = MED_NEEDS[medRank];
+    const quest = medQuest ? ` Quest: put ${medQuest.marigold} marigold and ${medQuest.dock} dock in the store (${questDeposited.marigold}/${medQuest.marigold}, ${questDeposited.dock}/${medQuest.dock}).` : "";
+    if (!need) return `Keep the herb store stocked (${herbStore}) and heal hurt clanmates (E next to them).${quest}`;
+    return `To become ${MED_RANKS[medRank + 1].toLowerCase()}: quests ${stats.quests}/${need.quests}, clanmates treated ${stats.treated}/${need.treated}` +
+           `${need.store ? `, herb store ${herbStore}/${need.store}` : ""}.${quest}`;
+  }
   // R45: the way to deputy and leader
   if (role === "Warrior") {
     const n = DEPUTY_NEEDS;
@@ -123,10 +133,19 @@ function updateHud() {
   const leader = playing && role === "Leader";
   $("orders").classList.toggle("hidden", !leader);
   if (leader) {
-    setText($("orders"), ["follow", "hunt", "guard"]
-      .map((o, i) => `${i + 1} ${o[0].toUpperCase() + o.slice(1)}${o === order ? " ◀" : ""}`).join("   "));
+    const names = { follow: "Follow", hunt: "Hunt", guard: "Guard", bighunt: "Big hunt" };   // 4: R47
+    setText($("orders"), ["follow", "hunt", "guard", "bighunt"]
+      .map((o, i) => `${i + 1} ${names[o]}${o === order ? " ◀" : ""}`).join("   "));
   }
 
+  // R48, R50: a speech or decision waiting for the player
+  updateChoice();
+  // R49: the deputy's mission
+  $("mission").classList.toggle("hidden", !(playing && mission));
+  if (mission) setText($("mission"), missionText());
+  // R53: the aiming dot
+  $("aim").classList.toggle("hidden", !(playing && !ui.menu && !pendingChoice));
+  $("aim").classList.toggle("on-herb", playing && !!aimedHerb());
   $("main-menu").classList.toggle("hidden", !(playing && ui.menu));   // R26
   // R37: after a game over the menu can only restart
   setText($("main-menu-title"), ui.gameOver ? "You have lost all nine lives" : "Paused");
@@ -151,6 +170,7 @@ function updateFishingBox() {
 let mouseLocked = false;
 
 $("game").addEventListener("click", () => {
+  clickToPick();   // R53: pick the herb under the aiming dot
   if (playing && !ui.menu && !choosingMentor && !choosingRole && $("game").requestPointerLock) $("game").requestPointerLock();
 });
 document.addEventListener("pointerlockchange", () => {
@@ -188,7 +208,7 @@ function buildPouch() {
 function updatePouch() {
   $("pouch").classList.toggle("hidden", !(playing && ui.pouch));
   if (!ui.pouch) return;
-  setText($("pouch-count"), `${pouchCount()} / ${pouchSize()} herbs · H to close`);
+  setText($("pouch-count"), `${pouchCount()} / ${pouchSize()} herbs · medicine den store: ${herbStore} · H to close`);
   $("pouch-list").querySelectorAll("button").forEach((b) => {
     const herb = HERBS[b.dataset.herb];
     const heal = Math.round(herb.heal * healMult());
@@ -208,11 +228,49 @@ function mapToCanvas(x, z) {
   return { x: (x + WORLD_HALF) * scale, y: (WORLD_HALF - z) * scale };
 }
 
+// ======================================================
+// Choices (R48, R50): a speech at the Gathering or a leader's decision
+// ======================================================
+let choiceShown = null;
+
+function updateChoice() {
+  $("choice").classList.toggle("hidden", !(playing && pendingChoice));
+  if (!pendingChoice || choiceShown === pendingChoice) return;
+  choiceShown = pendingChoice;
+  setText($("choice-title"), pendingChoice.title);
+  setText($("choice-text"), pendingChoice.text);
+  const box = $("choice-options");
+  box.innerHTML = "";
+  pendingChoice.options.forEach((o, i) => {
+    const b = document.createElement("button");
+    b.textContent = o.label;
+    b.addEventListener("click", () => {
+      chooseOption(i);
+      choiceShown = null;
+      updateHud();
+      document.activeElement.blur();
+    });
+    box.appendChild(b);
+  });
+}
+
+// R49: what the deputy's mission needs
+function missionText() {
+  if (mission.type === "message") return `Mission: carry a message to the ${mission.clan} camp${directionTo(mission.target)}.`;
+  if (mission.type === "stolen") {
+    return mission.carried ? `Mission: bring the stolen rabbit to your fresh-kill pile${directionTo(FRESH_KILL)}.`
+                           : `Mission: take back the rabbit ${mission.clan} stole${directionTo(mission.target)}.`;
+  }
+  return mission.kit.following ? `Mission: bring ${mission.kit.name} home to camp${directionTo(CAMP)}.`
+                               : `Mission: find ${mission.kit.name} in ${mission.clan} territory${directionTo(mission.kit)}.`;
+}
+
 function buildMapLegend() {
   const legend = $("map-legend");
   for (const [name, clan] of Object.entries(CLANS)) {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="key" style="background:${clan.color}"></span>${name}`;
+    li.dataset.clan = name;
+    li.innerHTML = `<span class="key" style="background:${clan.color}"></span>${name}<small></small>`;
     legend.appendChild(li);
   }
   const you = document.createElement("li");
@@ -228,6 +286,15 @@ function updateMap() {
   $("map").classList.toggle("hidden", !open);
   // Draw when it opens, then about 10 times a second
   if (open && (!mapWasOpen || time - mapDrawnAt > 0.1)) drawMap();
+  // R54: rivalries in the legend
+  if (open) {
+    $("map-legend").querySelectorAll("li[data-clan]").forEach((li) => {
+      const c = li.dataset.clan;
+      const r = rivalry[c];
+      const mood = r === undefined ? "your clan" : `rivalry ${Math.round(r)} (${r >= RIVALRY_HOSTILE ? "hostile" : (r < RIVALRY_FRIENDLY ? "friendly" : "tense")})`;
+      setText(li.querySelector("small"), ` · ${mood}`);
+    });
+  }
   mapWasOpen = open;
 }
 
@@ -454,8 +521,21 @@ buildMentorChoice();
 buildRoleChoice();
 buildPouch();
 buildMapLegend();
+// R55: the controls list lives in the main menu (Esc), so the game can fill the window
+$("controls-help").innerHTML = `<h3>Controls</h3>
+  <p>Walk: W/&uarr; (tap twice to run) &middot; Back: S/&darr; &middot; Turn: A/D or &larr;/&rarr; or the mouse &middot; Stalk: Shift &middot; Jump: Space</p>
+  <p>Action: E &middot; Scent: hold Q &middot; Map: M &middot; Herbs: H (and click an herb you aim at) &middot; Drop prey: G</p>
+  <p>Fight: E swipe &middot; C dodge &middot; F pounce attack &middot; R bite</p>
+  <p>Look up/down: click the game, then move the mouse &middot; Climb: walk into a tree</p>
+  <p>Leader orders: 1 Follow &middot; 2 Hunt &middot; 3 Guard &middot; 4 Big hunt &middot; Menu: Esc (stops fishing while fishing)</p>`;
 initView($("game"));
 initPreview($("preview"));
+// R55: the game fills the window
+function resizeGame() {
+  fitView(window.innerWidth, window.innerHeight);
+}
+window.addEventListener("resize", resizeGame);
+if (!document.getElementById("summary")) resizeGame();   // (the test page keeps its fixed size)
 if (!has3D()) {
   showMessage("The 3D library could not load. Check your internet connection and reload the page.", 30);
 }
