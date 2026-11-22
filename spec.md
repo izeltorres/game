@@ -2,7 +2,7 @@ spec.md
 
 # spec: warrior cats inspired themed game
 
-Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34) and Round 5 requirements R47–R57).
+Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34), Round 5 requirements R47–R57 and Round 6 requirements R58–R69, plus R70–R72 settled by the owner after Round 5).
 
 ## Purpose
 A rbg game that allows you play as a 3rd perspective account.
@@ -500,3 +500,124 @@ from R9 changes as described in R43.
 ### Controls (Round 5)
 4: big hunt (leader). Click: pick the herb you aim at. All other keys are as in Round 4; the
 controls list is in the Esc menu.
+
+## Round 6
+
+R58–R69 come from `problem.md`. R70–R72 are the owner's answers given after Round 5 (in `decision.md`),
+numbered here so they can be tested.
+
+### R58. The mentor is a physical cat
+- **Solid bodies:** you can't walk through other cats. You bump into your mentor, camp cats, kits,
+  medicine cats, clanmates and enemies.
+- **The mentor shows you how:** when the mentor reaches the place of a task, it demonstrates it until
+  you take over:
+
+  | Task | What the mentor does |
+  | --- | --- |
+  | Border patrol | Sniffs the marker |
+  | Hunt a squirrel | Stalks low and pounces |
+  | Climb (R64) | Looks up at the tree |
+  | Catch fish | Swipes a paw at the water |
+  | Chase off the rogue | Takes a fighting stance |
+
+- **Talk to your mentor:** press E next to your mentor to hear the task again with a tip.
+
+### R59. A more realistic river
+- **Flowing water:** the water's surface moves downstream. A current pushes cats in the deep water
+  downstream (south) at 1 unit per second.
+- **Depth:** the 1.2 units along each bank are shallow, so you wade (×0.75 speed, no current, no
+  swimming). The middle is deep, so you swim, with the clan's swim speed (R6) and the current.
+- **Banks and stones:** sloped, muddy banks with pebbles. Stepping stones cross the big river and the
+  stream. Standing on a stepping stone counts as dry land.
+- **Life in the river:** lily pads, reeds, fish that now and then jump out of the water, and a
+  splash when a cat walks or jumps into the water.
+- The river keeps its straight course.
+
+### R60. More textures
+Textures are drawn by the game itself (no image files) for:
+- the ground in every territory, and the camp dirt;
+- tree bark and rocks;
+- cat fur (patterns still sit on top);
+- hut brambles and the water surface.
+
+### R61. Music and sounds
+All sounds are made in the browser (Web Audio), with no sound files, in a new file `sound.js`.
+- A soft music loop.
+- Ambient sounds that follow the place, weather and time: wind, rain (louder in a storm), the river
+  when you are near water, birds by day and crickets at night.
+- Cat sounds: a meow when talking, a hiss when a fight starts, a purr when sharing tongues, a swish
+  for a pounce or swipe, crunching when eating, and a splash in the water.
+- The Esc menu has a volume slider and a mute button.
+- Sound starts after the first click or key press (browsers require this).
+
+### R62. Rogues are more dangerous
+- The apprentice's rogue task is still a single rogue.
+- After that, rogues come in **packs of 2–3**:
+  - The leader rogue is the one you must beat; when it flees, the rest flee too.
+  - Pack rogues are tougher (90 health), hit harder (18) and smarter: they circle you between attacks
+    and sometimes sidestep a swipe.
+- **They roam:** pack rogues wander your territory and come for you when they see you (within 18 units).
+- **They steal and hurt:** a pack that isn't chased off within 2 minutes raids your camp. It takes a
+  piece from the fresh-kill pile and hurts a camp cat, then goes back to roaming.
+
+### R63. Cats interact
+- **Share tongues:** press E next to a camp cat (or a leader's clanmate) to groom it. You both feel
+  better (+10 health for you), and you hear a purr. Each cat can be groomed once every 30 seconds.
+- **Play with kits:** when you are an apprentice or older and in camp, kits come up to you. Press E
+  next to a kit to play a pounce game.
+- **Cats interact with each other:** camp cats pair up now and then to groom each other, touch noses
+  in greeting, share a piece of fresh-kill, or argue.
+
+### R64. Tree climbing matters
+- **See further:** high in a tree (more than 3 units up), you can see prey and enemies within 60
+  units, and the border markers. They are marked in the view and on the map.
+- **Escape danger:** rogues and other clans' cats can't follow you more than 1.5 units up a tree,
+  except ThunderClan cats. They wait below.
+- **Prey in trees:** some sparrows perch in trees. Climb up to their height and press E to catch them.
+- **Climbing task:** the mentor's tasks become patrol → squirrel → **climb** → fish → rogue. The
+  climb task is "climb a tree to 1.8 units up and look out over the territory".
+
+### R65. A more realistic fresh-kill pile
+- The pile shows the real prey that was put on it (mice, voles, rabbits, fish...), stacked.
+- Prey goes stale: each new day, pieces that have been on the pile for more than a day are cleared away.
+
+### R66. Camp cats eat from the fresh-kill pile
+- Each camp cat gets hungry every few minutes (about 3). Then it walks to the pile and eats one
+  piece, if there is one.
+
+### R67. More obvious border markers
+- Each border marker is a tall glowing scent post you can see from far away.
+- The next marker on a patrol glows brighter, and the HUD points to it.
+- Markers are shown on the map.
+
+### R68. Calmer trees and falling leaves
+- Trees sway half as much as before.
+- Leaves drift down from the trees: some in newleaf and greenleaf, many in leaf-fall, none in leaf-bare.
+
+### R69. Seasons
+- Time is counted in seasons of **30 game days** each (a game day is 1 real hour, R10):
+  **newleaf → greenleaf → leaf-fall → leaf-bare**, then newleaf again. A game starts in newleaf.
+- The HUD shows the season next to the day.
+- Effects of each season:
+
+  | Season | Looks | Prey | Weather |
+  | --- | --- | --- | --- |
+  | Newleaf | Fresh light green | Normal | Mixed |
+  | Greenleaf | Deep green | Prey comes back twice as fast after hiding | More clear days, and storms |
+  | Leaf-fall | Orange and brown leaves | Normal | More rain and wind |
+  | Leaf-bare | Bare branches and snow on the ground | Only half the prey comes out (as in rain) | No storms; more fog and wind |
+
+### R70. Leaders are visible
+- Every clan's leader lives in its camp and stands by the Highrock, including your own clan's leader
+  until you become leader.
+- Your clan leader gives the warrior naming ceremony (R40), by name.
+- When you become leader, the old leader retires (it goes to live with the elders and is no longer shown).
+- At a Gathering (R48) the other clans' leaders go to the Great Oak.
+
+### R71. Rival medicine cats look after their own clan
+- When one of their cats is beaten and lies resting in its camp, their medicine cat walks over and
+  treats it. It gets up much sooner than the 30 seconds it would take alone.
+- Resting cats are shown lying in their camp.
+
+### R72. Beetles count a little as prey
+- After choosing a role, every 4 beetles you catch count as 1 prey toward promotions.
