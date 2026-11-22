@@ -2,7 +2,7 @@ spec.md
 
 # spec: warrior cats inspired themed game
 
-Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20 and Round 3 requirements R21–R29).
+Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29 and Round 4 requirements R30–R46; there is no R33 or R34).
 
 ## Purpose
 A rbg game that allows you play as a 3rd perspective account.
@@ -286,3 +286,108 @@ M map, H herb pouch, 1/2 herbs (when the pouch is open), 1/2/3 orders (leader, w
 
 ### Controls (Round 3)
 Esc opens the main menu (or stops fishing). G drops carried prey. All other keys are as in Round 2.
+
+## Round 4
+
+Round 4 replaces how the cat moves up the ranks (R42, R43, R45). The kit tasks from the start of
+this spec (squirrel, fishing, rogue) become the apprentice's mentor tasks, and the role choice
+from R9 changes as described in R43.
+
+### R45, R42, R41. Growing up: kit → apprentice
+- A **kit** stays in camp: it can't walk past the camp boundary (12 units from the middle, inside
+  the stone ring). A message says kits must stay in camp (R42).
+- Beetles and mice scurry around inside the camp for kits. A kit must catch **5 beetles and 3 mice**.
+  Each catch counts toward the mix and makes the kit a little bigger (from size 0.5 to 0.75).
+- When the mix is complete, the kit becomes an **apprentice**: its name ends in **-paw** (R41) and it
+  chooses a mentor (the 3 mentors from R19).
+
+### R44, R45. The mentor teaches the apprentice
+- The mentor gives the apprentice its tasks, one at a time, in order. Each task is announced by the
+  mentor (the message starts with the mentor's name), and the HUD shows "<Mentor>'s task: …".
+- The mentor **leads** the apprentice to each task: it walks ahead toward the place, and waits for
+  the apprentice if it falls more than 10 units behind.
+- The tasks:
+  1. **Border patrol:** visit 3 border markers in your territory, in order.
+  2. **Hunt a squirrel:** stalk and catch a squirrel.
+  3. **Catch fish:** catch 3 fish at the water in your territory (R35).
+  4. **Chase off a rogue:** beat the rogue (as before).
+- The mentor's specialty bonus (R19) still applies.
+- After the last task, the apprentice chooses its path (R43).
+
+### R43, R40. Choosing a path
+- At the end of the apprenticeship the player chooses only **Warrior** or **Medicine cat**. Deputy
+  is no longer a choice; it is earned (R45).
+- **Warrior name (R40):** when the apprenticeship ends, the clan leader gives the cat a random
+  warrior name ending (e.g. Stormclaw) in a short ceremony message. Medicine cats get one too.
+- Medicine cats work as before (heal hurt clanmates, never become leader).
+
+### R45, R36, R39. Warrior → deputy → leader
+- **Warrior → deputy:** catch 5 prey, win 3 fights, and lead 1 border patrol (visit the 3 border
+  markers). Then the cat becomes **deputy**.
+- **Deputy → leader:** catch 3 more prey, win 2 more fights, and **train an apprentice** (R36, R39).
+  Then the cat becomes **leader**, and its name ends in **-star**.
+- Counts start from zero at each promotion. Beetles don't count as prey.
+- **Training an apprentice:** when the cat becomes deputy, one of the camp's kits becomes its
+  apprentice (its name changes to -paw and it grows) and follows the deputy. Three lessons, in order:
+  1. **Hunting lesson:** the apprentice catches 3 prey near you (within 15 units).
+  2. **Battle practice:** face your apprentice and press E to land 3 practice hits (no harm done).
+  3. **Border patrol:** visit the 3 border markers with your apprentice.
+
+  After the lessons, the apprentice becomes a warrior and goes back to camp.
+
+### R37. Nine lives
+- A leader has **9 lives**. When a leader's health reaches 0, it loses one life and gets up on the
+  spot with full health (2 seconds where nothing can hurt it). The HUD shows the lives left.
+- Losing the 9th life is **game over**: the main menu opens with "You have lost all nine lives" and
+  only Restart and New cat.
+- Cats that are not leaders faint as before.
+
+### R38. Hunger
+- Unchanged and still required: when food is at zero, health goes down (2 per second).
+
+### R31. More kits
+- 4 kits live in your camp. They play: they chase each other, pounce on leaves, tumble about and
+  wander, but never leave camp.
+- Each other clan's camp has 2 kits. When you come near (within 15 units) on their territory, they
+  run and hide in their nursery until you leave.
+
+### R30. Weather
+- Weather changes about every 4 minutes. It can be **clear, rain, fog, wind or a thunderstorm**.
+  The HUD shows it next to the clock.
+
+  | Weather | Prey | Scent (R14) | Other |
+  | --- | --- | --- | --- |
+  | Clear | All prey out | Normal | |
+  | Rain | Only half the prey comes out | Shorter (×0.6) | Rain falls |
+  | Fog | All prey out, but they notice you less (×0.6) | Normal | Thick fog, you see less |
+  | Wind | All prey out | Further (×1.5) | Grass and trees sway more |
+  | Thunderstorm | All prey hide | Much shorter (×0.4) | Heavy rain, lightning flashes; other clans' patrols stay in their camps |
+
+### R32. Look up and down
+- Click the game to capture the mouse. Moving the mouse up and down tilts the camera, and moving it
+  left and right turns the cat.
+- The tilt is limited so the camera never goes under the ground.
+- Esc (or anything else that releases the mouse) opens the main menu.
+
+### R35. More realistic fish and fishing
+- Fish have a proper shape: a tapered body, a tail fin, a back fin and side fins, and speckled colours.
+- Fishing is done in 3D, replacing the gold-zone bar:
+  - Press E by the water. The cat crouches facing the water, and fish swim about under the surface.
+  - Press E when a fish is under your paw (a ripple marks the spot) to catch it.
+  - A swipe that misses splashes, and nearby fish dart away.
+  - RiverClan's paw reaches further (easier fishing, R6).
+  - Esc stops fishing.
+
+### R46. More animations
+- **Idle life:**
+  - Breathing, blinking and ear twitches.
+  - An idle cat looks around.
+  - It sits down after 5 seconds of standing still, and lies down after 15.
+- **Better moves:**
+  - A leap pose when jumping or pouncing.
+  - Running is a gallop (front legs together, back legs together), different from the walk.
+  - Paddling legs when swimming.
+- **Eating and hurt:**
+  - The cat lowers its head and chews when it eats.
+  - It limps when its health is low (under 30).
+  - It flinches when it is hit.
