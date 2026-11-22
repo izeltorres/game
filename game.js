@@ -169,7 +169,9 @@ const CURRENT_SPEED = 1;           // the river pushes swimmers south in deep wa
 const SHALLOW = 1.2;               // how wide the wading shallows are along each bank
 const WADE_SPEED = 0.75;
 const STONE_CROSSINGS = [20, -20]; // z of the stepping-stone crossings over both waters
-const ROGUE_PACK_HP = 90;          // rogue packs after the apprenticeship (R62)
+const ROGUE_PACK_HP = 130;         // rogue packs after the apprenticeship (R62); tougher in R77 (was 90)
+const ROGUE_MATE_HP = 80;          // the rest of a pack (R77; was 60)
+const ROGUE_PACK_RESPAWN = 40;     // R77: packs come half as often as single rogues did
 const ROGUE_PACK_DAMAGE = 18;
 const ROGUE_SIGHT = 18;
 const ROGUE_RAID_AFTER = 120;      // a pack not chased off by then raids your camp
@@ -1875,7 +1877,7 @@ function updateRogue(dt) {
     r.fleeTimer -= dt;
     if (r.fleeTimer <= 0) {
       r.state = "gone";
-      r.respawn = ROGUE_RESPAWN;
+      r.respawn = r.smart ? ROGUE_PACK_RESPAWN : ROGUE_RESPAWN;   // R77
     }
     return;
   }
@@ -2285,7 +2287,8 @@ function updateKits(dt) {
 // ======================================================
 function setWeather(w) {
   weather = w;
-  weatherTimer = WEATHER_TIME;
+  // R76: rain and storms last half as long as other weather
+  weatherTimer = w === "rain" || w === "storm" ? WEATHER_TIME / 2 : WEATHER_TIME;
 }
 
 function updateWeather(dt) {
@@ -3208,10 +3211,11 @@ function respawnTime(base) {
 // R69: weather that fits the season (picked at random from the list)
 function weatherChoicesFor(s) {
   return {
-    newleaf: ["clear", "clear", "clear", "rain", "rain", "fog", "fog", "wind", "wind", "storm"],
-    greenleaf: ["clear", "clear", "clear", "clear", "clear", "rain", "fog", "wind", "storm", "storm"],
-    "leaf-fall": ["clear", "clear", "rain", "rain", "rain", "fog", "wind", "wind", "wind", "storm"],
-    "leaf-bare": ["clear", "clear", "fog", "fog", "fog", "wind", "wind", "wind"],
+    // R76: newleaf and leaf-fall are the rainy seasons; greenleaf only has the odd storm; leaf-bare snows instead
+    newleaf: ["clear", "clear", "clear", "clear", "rain", "rain", "rain", "fog", "fog", "wind", "wind", "storm"],
+    greenleaf: ["clear", "clear", "clear", "clear", "clear", "clear", "clear", "fog", "wind", "wind", "wind", "storm"],
+    "leaf-fall": ["clear", "clear", "clear", "rain", "rain", "rain", "rain", "fog", "wind", "wind", "wind", "storm"],
+    "leaf-bare": ["clear", "clear", "clear", "clear", "fog", "fog", "fog", "fog", "wind", "wind", "wind", "wind"],
   }[s];
 }
 
@@ -3307,7 +3311,7 @@ function spawnRoguePack(spot) {
   const size = 1 + Math.floor(Math.random() * 2);   // 1-2 more
   rogueMates = [];
   for (let i = 0; i < size; i++) {
-    rogueMates.push({ x: spot.x + (i ? -1.5 : 1.5), z: spot.z - 1, hp: ROGUE_HP, heading: 0, walk: 0, windup: 0, cooldown: 1 + i,
+    rogueMates.push({ x: spot.x + (i ? -1.5 : 1.5), z: spot.z - 1, hp: ROGUE_MATE_HP, heading: 0, walk: 0, windup: 0, cooldown: 1 + i,
                       hurtTimer: 0, stagger: 0, fleeTimer: 0, state: "roaming", smart: true, damage: 14, isMate: true,
                       look: { fur: ["#5a5048", "#7a6a5a"][i], eyes: "#d4c84a", pattern: "Tabby" } });
   }
