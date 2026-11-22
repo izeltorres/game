@@ -22,7 +22,7 @@ R11- Camera and movemnt is low and close, as if it were from the cats perspectiv
 
 ## Round 2
 R12- Make sure the turn button aren't as choppy, more smooth
-R13- Make it so kits can hunt easy prey; such as bugs and smaller mammals, and so hunting isn't as head towrds the beginning
+R13- Make it so kits can hunt easy prey; such as bugs and smaller mammals, and so hunting isn't as hardd towrds the beginning
 R14-Make it so you can 'hunt by scent' 
 R15-Make a button that allows you to check a map, a map that is has each clan territory marked.
 R16- Cat in your own clan are friendly, if you step into another territory you can get attacked
@@ -43,6 +43,24 @@ R28-make it so the cats tail follow what a cat normally does
 R29-have other camps have cats living in them
 
 ## Round 4
+R30-Make there be weather, and prey be affected by it.
+R31-Make there be more kits around
+R32- allow for camera angle to be angled up and down
+R35- Make the fish more realistic
+R36- To become a leader you also need to mentor a kit
+R37- Leader recieve 9 lives (they don't die once their health is at 0)
+R38- health starts going down once food bar is at zero
+R39- deputies also need to train an appretence
+R40-once you become a warrior you earn a warrior name after the completion of apprenticeship
+R41-Once you become a apprentice your name ends with -paw
+R42- kits stay in camp, can only hunt within camp boundries
+R43- change with R5, R9, you can only pick between medicine cat, and the path to become leader which is; warrior-->deputy-->leader.
+R44- the cat that teaches the skills is more important, make sure they are the ones teaching the appretice things
+R45- to level up specifically; kit gets bugs and smaller animals until they reach an amount and size to get taken as an appreteice. Once an appretience it must due the task its mentor tells it to complete. Then the user can either choose to become a warrior or medicine cat.
+-- warrior cats path to deputy involves more task 
+-- deputy path to leader more task
+-- leader's name ends with -star
+R46-add more animations
 
 ## Round 5
 
