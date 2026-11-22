@@ -2824,7 +2824,7 @@
 
         // ---------- R80 medicine cats stay in their dens ----------
         freshWithRole("Warrior", "WindClan"); quiet();
-        const medDen = (clan) => huts.find((h) => h.clan === clan && h.id === "medicine");
+        const medicineDen = (clan) => huts.find((h) => h.clan === clan && h.id === "medicine");
         check("R80", "a hurt camp cat walks into the medicine den and is treated there; Thymeleaf never leaves it", () => {
           injuryTimer = 999;
           const hurt = campCats[2]; Object.assign(hurt, { injured: true, injuredTime: TREAT_AFTER, hp: 40 });
@@ -2832,8 +2832,8 @@
           placeAt(-30, -30);
           for (let i = 0; i < 60 && hurt.injured; i++) {
             step(0.5);
-            if (insideHut(hurt) === medDen(clanName)) wentIn = true;
-            if (insideHut(thyme()) !== medDen(clanName)) medicStayed = false;
+            if (insideHut(hurt) === medicineDen(clanName)) wentIn = true;
+            if (insideHut(thyme()) !== medicineDen(clanName)) medicStayed = false;
           }
           return wentIn && medicStayed && !hurt.injured && hurt.hp === 100;
         });
@@ -2844,8 +2844,8 @@
           const medic = medicineCats.find((m) => m.clan === "RiverClan");
           for (let i = 0; i < 60 && c.state !== "patrol"; i++) {
             step(0.5);
-            if (c.state === "resting" && insideHut(c) === medDen("RiverClan")) restedInDen = true;
-            if (insideHut(medic) !== medDen("RiverClan")) medicStayed = false;
+            if (c.state === "resting" && insideHut(c) === medicineDen("RiverClan")) restedInDen = true;
+            if (insideHut(medic) !== medicineDen("RiverClan")) medicStayed = false;
           }
           return restedInDen && medicStayed && c.state === "patrol";
         });
