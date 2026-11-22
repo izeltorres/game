@@ -55,3 +55,18 @@
 - R40: the clan leader gives a random warrior name in a short ceremony.
 - R31: 4 playing kits in your camp, and kits in the other camps too (they hide when you come near).
 - R46: idle life, better moves, and eating/hurt animations.
+
+## Session 6 (2026-11-21/22) - Round 5
+
+- Build Round 5 (R47–R57) from `problem.md`.
+- R47: prey sizes means new kinds: voles and sparrows (small), rabbits (medium), hares (big).
+- R47: the leader's big hunt: the leader and 3 clanmates surround a hare together.
+- R48: full-moon Gatherings in the middle of the world with a truce; the leader gives a speech.
+- R50: leader decisions are events with 2–3 choices that change the whole clan.
+- R49: deputy missions are carrying a message, recovering stolen prey, and finding a lost kit.
+- R54: each clan has a rivalry meter, shown on the map, with raids when it is high.
+- R52: every camp has a medicine cat.
+- R53: click the herb you aim at, using an aiming dot in the middle of the screen.
+- R55: the game fills the browser window.
+- R56: prey in camp is slower and less wary for kits.
+- R57: medicine cats get collecting quests, a herb store, treating clanmates, and ranks.

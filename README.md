@@ -13,6 +13,8 @@ patrols on their land.
    Calico, Spotted or Colorpoint) and clan.
 3. Press **Start**.
 
+The game fills the browser window. Press **Esc** for the menu, which also lists all the controls.
+
 The camera sits low and close behind your cat and swings round smoothly when you turn.
 
 ### Controls
@@ -35,7 +37,8 @@ The camera sits low and close behind your cat and swings round smoothly when you
 | Esc | Main menu: Resume, Restart (same cat, start over as a kit), New cat. While fishing, Esc stops fishing |
 | G | Drop the prey you are carrying (at the fresh-kill pile it goes onto the pile; pick it up again with E) |
 | Walk into a tree | Climb it |
-| 1 / 2 / 3 | Leader only, with the pouch closed: order clanmates to Follow, Hunt or Guard |
+| 1 / 2 / 3 / 4 | Leader only, with the pouch closed: order clanmates to Follow, Hunt, Guard, or go on a Big hunt |
+| Click | Pick the herb under the aiming dot in the middle of the screen |
 
 ### The world
 
@@ -50,6 +53,11 @@ The world is split into 4 clan territories. Press **M** to see the map.
 
 - Your clan's cats are friendly. On another clan's land, their patrols and the cats living in their camp
   will attack you, and the HUD turns red. Leave their land and they let you go.
+- In the middle of the world stands the **Great Oak**. Leaders are called there for full-moon **Gatherings**; nobody
+  attacks in its clearing.
+- Every other clan has a **rivalry** with yours (shown on the map). Fights and trespassing raise it, and good speeches
+  and decisions lower it. Friendly clans only warn you off; hostile ones spot you sooner and raid your camp.
+- Every camp has a **medicine cat**. Yours, Thymeleaf, heals you (E next to them, once a minute) and treats hurt clanmates.
 - Kits play in every camp. Yours chase each other, pounce and tumble about; other clans' kits hide in their
   nursery when you come near.
 - Your camp has five huts you can walk into through their doorways (the nursery, the apprentices' den,
@@ -67,7 +75,11 @@ The world is split into 4 clan territories. Press **M** to see the map.
   | --- | --- |
   | Beetle | +8 |
   | Mouse | +20 |
+  | Vole | +18 |
+  | Sparrow | +15 |
   | Squirrel | +40 |
+  | Rabbit | +45 |
+  | Hare (big hunt only) | 4 pieces on the fresh-kill pile |
   | Fish | +30 |
   | Fresh-kill pile | +25 |
 
@@ -85,12 +97,12 @@ The world is split into 4 clan territories. Press **M** to see the map.
 
 | Rank | What to do | Reward |
 | --- | --- | --- |
-| Kit | Stay in camp and catch 5 beetles and 3 mice there (stalk mice with Shift). You grow with every catch. | Become an apprentice (*-paw*) and choose a mentor |
+| Kit | Stay in camp and catch 5 beetles and 3 mice there (stalk mice with Shift). You grow with every catch. Camp prey is slow and easy to sneak up on. | Become an apprentice (*-paw*) and choose a mentor |
 | Apprentice | Do your mentor's tasks; your mentor leads the way: walk the border (3 markers), hunt a squirrel, catch 3 fish, chase off a rogue. | Choose a path: Warrior or Medicine cat. The clan leader gives you your warrior name |
 | Warrior | Catch 5 prey (mice, squirrels, fish), win 3 fights (rogues or other clans' cats) and walk a border patrol. | Become Deputy |
-| Deputy | Catch 3 prey, win 2 fights, and train one of the camp's kits as your apprentice: a hunting lesson (it catches 3 prey near you), battle practice (3 practice hits with E), and a border patrol together. | Become Leader (*-star*) with nine lives |
-| Medicine cat | Heal hurt clanmates in camp (E next to them, with herbs in your pouch). | Medicine cats never become leader |
-| Leader | Give orders to your 3 clanmates: Follow (they help you fight), Hunt (they bring fresh-kill), Guard (they guard camp). You have **nine lives**: at 0 health you lose one and get up again. Losing the ninth is game over. | |
+| Deputy | Catch 3 prey, win 2 fights, train one of the camp's kits as your apprentice (a hunting lesson, battle practice, a border patrol together), and complete a mission outside your territory: carry a message to another camp, take back stolen prey, or find a lost kit. | Become Leader (*-star*) with nine lives |
+| Medicine cat | Start as Thymeleaf's apprentice. Collect the herbs Thymeleaf asks for and put them in the medicine den's store (E inside the den), and heal hurt clanmates (E next to them, with herbs in your pouch). | Medicine cat, then senior medicine cat (never leader) |
+| Leader | Give orders to your 3 clanmates: Follow (they help you fight), Hunt (they bring fresh-kill), Guard (they guard camp). Order 4 starts a big hunt for a hare. Go to the Gatherings, and make big decisions for your clan when they come up. You have **nine lives**: at 0 health you lose one and get up again. Losing the ninth is game over. | |
 
 ### Mentors
 
@@ -125,7 +137,7 @@ The world is split into 4 clan territories. Press **M** to see the map.
 - `render3d.js`: the 3D drawing (Three.js).
 - `script.js`: keyboard, menu, HUD, map, herb pouch and main loop.
 - `tests.html`: automatic tests. Open it in a browser; it plays through the game and lists PASS/FAIL
-  for each check, each named with its requirement ID (R1–R46).
+  for each check, each named with its requirement ID (R1–R57).
 - `problem.md`, `spec.md`: what the game should be.
 - `decision.md`, `docs/decisions/`, `handoff.md`, `handoff-round-N.md`: project notes and decision records.
 
