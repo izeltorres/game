@@ -259,6 +259,8 @@ let mission = null;         // the deputy's current mission (R49)
 let missionIndex = 0;
 let missionTimer = 0;
 let stolenPrey = null;      // { x, z, clan } for the stolen-prey mission
+let graceClan = null;       // after delivering a message, that clan lets you leave in peace for a while
+let graceTimer = 0;
 const rivalry = {};         // other clans' rivalry with yours, 0-100 (R54)
 let trespassTimer = 0;
 let raidTimer = RAID_TIME;
@@ -375,6 +377,8 @@ function resetGame() {
   mission = null;
   missionIndex = 0;
   missionTimer = 0;
+  graceClan = null;
+  graceTimer = 0;
   stolenPrey = null;
   for (const c in CLANS) rivalry[c] = RIVALRY_START;
   delete rivalry[clanName];
@@ -559,15 +563,16 @@ function moveToward(body, target, speed, dt) {
     body.heading = best.h;
     if (best.turn !== 0) body.avoidSide = Math.sign(best.turn) * side;
   }
-  // Every half second, check how much closer the cat really got (stepping back and forth in front of an
-  // obstacle can look like progress frame by frame). Hardly any: walk along the obstacle for a moment (above).
+  // Every half second, check how far the cat really got (stepping back and forth in front of an obstacle
+  // looks like moving frame by frame). Hardly anywhere while trying to walk: go along the obstacle for a
+  // moment (above). This looks at the cat's own movement, so chasing something that runs away doesn't count.
   body.stuckClock = (body.stuckClock || 0) + dt;
   if (body.stuckClock >= 0.5) {
-    if (body.lastTargetDist !== undefined && body.lastTargetDist - d < speed * 0.5 * 0.2 && d > 1) {
+    if (body.stuckFrom && distance(body, body.stuckFrom) < speed * 0.5 * 0.2 && d > 1) {
       body.detour = 1.2;
       body.detourHeading = want + (body.avoidSide || 1) * 1.6;
     }
-    body.lastTargetDist = d;
+    body.stuckFrom = { x: body.x, z: body.z };
     body.stuckClock = 0;
   }
   body.walk = (body.walk || 0) + stepSize * 3;
@@ -2607,6 +2612,7 @@ function addStrayKit() {
 // The Great Oak's truce (R48), and the clan you carry a message to (R49), mean nobody attacks
 function truceWith(clan) {
   if (distance(player, GATHERING_SPOT) < TRUCE_RADIUS) return true;
+  if (clan === graceClan && graceTimer > 0) return true;
   return !!mission && mission.type === "message" && mission.clan === clan;
 }
 
@@ -2614,6 +2620,7 @@ function truceWith(clan) {
 // Deputy missions (R49)
 // ======================================================
 function updateMissions(dt) {
+  graceTimer = Math.max(0, graceTimer - dt);
   if (role !== "Deputy") return;
   if (!mission) {
     missionTimer -= dt;
@@ -2621,7 +2628,10 @@ function updateMissions(dt) {
     return;
   }
   if (mission.type === "message" && distance(player, mission.target) < 6) {
+    graceClan = mission.clan;
+    graceTimer = 20;
     completeMission(`You deliver the message to ${mission.clan}. They let you leave in peace.`);
+    return;
   }
   if (mission.type === "lostkit") {
     const k = mission.kit;
