@@ -101,4 +101,13 @@ R77-make it harder to get rid of rogue cats but do not make them as oftern(chang
 R78-allow for change of territories
 R79-dont allow rogues on base camp
 
+## Round 8
+R78-allow for change of territories
+R79-dont allow rogues on base camp
+R80- make it so the medicine cat is inside the medicine hut
+R81-dont let things blockthe players view (trees, cats, etc)
+R82- make the tree branches only up higher
+R83-as a warrior your fight should be against one rogue, then as you level up so do the rogues
+R84-save progress
+
 
