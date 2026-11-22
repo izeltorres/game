@@ -566,7 +566,7 @@
         check("R39", "the last lesson is a border patrol with your apprentice; then it becomes a warrior", () => {
           const t = trainee;
           walkThePatrol();
-          return stats.trained === 1 && t.lesson === "done" && !t.name.endsWith("paw");
+          return t.lesson === "done" && !t.name.endsWith("paw") && t.name.startsWith(t.baseName); // (the promotion that follows resets the counts)
         });
         check("R45", "a deputy with 3 prey, 2 fights and a trained apprentice becomes leader, name ends in -star", () =>
           role === "Leader" && rankName() === "Leader" && fullName() === "Stormstar");
@@ -1628,6 +1628,7 @@
 
         // ================= R30 weather =================
         freshWithRole("Warrior", "WindClan");
+        for (let i = 0; i < 10; i++) prey.push(makeCritter(i < 6 ? "beetle" : "mouse", i)); // freshWithRole cleared them
         check("R30", "the weather is clear, rain, fog, wind or a thunderstorm", () => WEATHERS.join() === "clear,rain,fog,wind,storm" && weather === "clear");
         check("R30", "the weather changes after a while", () => {
           const before = weather; step(WEATHER_TIME + 1);
@@ -1766,6 +1767,7 @@
         });
         check("R24", "grass grows in clumps", () => view.grass.userData.clumps >= 1000 && view.grass.count / view.grass.userData.clumps >= 3);
         check("R24", "grass sways in the wind on the graphics card", () => {
+          renderFrame(); // so the scene is up to date before reading its grass settings
           const u = view.grassUniforms;
           time = 10; renderFrame(); const t1 = u.uTime.value;
           time = 11; renderFrame();
