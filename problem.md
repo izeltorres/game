@@ -98,8 +98,6 @@ R74-allow for a winding river
 R75-when rogue packs attack you can call to your pack to help you
 R76-make it rain less, make more during raniy season
 R77-make it harder to get rid of rogue cats but do not make them as oftern(change to R62)
-R78-allow for change of territories
-R79-dont allow rogues on base camp
 
 ## Round 8
 R78-allow for change of territories
