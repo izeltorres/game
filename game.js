@@ -606,6 +606,12 @@ function moveToward(body, target, speed, dt) {
     if (!best || progress > best.progress) best = { trial, h, progress, turn };
     if (progress > stepSize * 0.3) break;
   }
+  // R58: cats are solid, so no one walks into you (they stop when they reach you)
+  const room = kits.includes(body) ? CAT_BODY * 0.75 : CAT_BODY;
+  if (best && !player.climbing && distance(best.trial, player) < room && distance(best.trial, player) < distance(body, player)) {
+    body.heading = best.h;
+    best = null;
+  }
   if (best) {
     body.x = best.trial.x;
     body.z = best.trial.z;
@@ -1751,6 +1757,7 @@ function tryPounceAttack() {
   player.vy = 3;
   player.onGround = false;
   player.attackTimer = 0.3;
+  pushPlayerOutOfCats();   // R58: you land next to the cat you pounced on, not inside it
   player.recover = POUNCE_RECOVER;
   playSound("swish");
   const e = enemyInFront(2.2, 0.3);
@@ -2066,7 +2073,7 @@ function chooseRole(choice) {
   warriorSuffix = WARRIOR_SUFFIXES[Math.floor(Math.random() * WARRIOR_SUFFIXES.length)];
   resetStats();
   markersVisited = 0;
-  const ceremony = `${ownLeaderName()} calls the clan together from the Highrock: "From this day on you will be known as ${fullName()}."`;
+  const ceremony = `${ownLeaderName()}, your clan leader, calls the clan together from the Highrock: "From this day on you will be known as ${fullName()}."`;
   if (role === "Medicine cat") {
     // R57: you start as Thymeleaf's apprentice, with a collecting quest
     medRank = 0;

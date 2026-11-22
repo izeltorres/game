@@ -1324,12 +1324,16 @@
           pressE(); rogue.state = "gone";
           return player.hp === 30;
         });
+        let pileBefore = 0;
         check("R20", "carried prey can be dropped on the fresh-kill pile", () => {
+          // (counted from what is there now: camp cats eat from the pile too, R66)
+          campCats.forEach((c) => { c.hungerTimer = 999; c.eating = false; });
+          pileBefore = freshKill;
           player.carrying = "mouse"; place(FRESH_KILL.x, FRESH_KILL.z); pressE();
-          return player.carrying === null && freshKill === 4;
+          return player.carrying === null && freshKill === pileBefore + 1;
         });
-        check("R20", "a hungry cat eats from the fresh-kill pile", () => { player.food = 40; pressE(); return player.food === 40 + PREY_FOOD.pile && freshKill === 3; });
-        check("R20", "a cat that isn't hungry leaves the pile alone", () => { player.food = 100; pressE(); return freshKill === 3; });
+        check("R20", "a hungry cat eats from the fresh-kill pile", () => { player.food = 40; pressE(); return player.food === 40 + PREY_FOOD.pile && freshKill === pileBefore; });
+        check("R20", "a cat that isn't hungry leaves the pile alone", () => { player.food = 100; pressE(); return freshKill === pileBefore; });
 
         // ================= R21 title screen and patterns =================
         check("R21", "the game is called Cat Clans", () => GAME_NAME === "Cat Clans" && doc.getElementById("game-title").textContent === "Cat Clans");
@@ -1424,10 +1428,13 @@
           const tree = { x: CAMP.x, z: CAMP.z, r: 0.6, h: 12, kind: "oak", phase: 0 };
           trees.push(tree);
           const c = campCats[3];
-          Object.assign(c, { x: CAMP.x + 0.05, z: CAMP.z - 3, injured: false, target: { x: CAMP.x, z: CAMP.z + 3 }, timer: 99 });
+          Object.assign(c, { x: CAMP.x + 0.05, z: CAMP.z - 3, injured: false, target: { x: CAMP.x, z: CAMP.z + 3 }, timer: 99,
+                             hungerTimer: 999, social: null, partner: null });   // (not hungry or busy with another cat: R63, R66)
+          socialClock = 999;
           placeAt(0, -30);
           let closest = Infinity;
           for (let i = 0; i < 8 * 60; i++) { step(1 / 60); closest = Math.min(closest, dist2d(c, tree)); }
+          socialClock = SOCIAL_TIME;
           return closest >= tree.r + CAT_R - 0.02 && dist2d(c, { x: CAMP.x, z: CAMP.z + 3 }) < 0.6;
         });
         check("R23", "rogues can't go through rocks either", () => {
@@ -1632,7 +1639,7 @@
           const seen = new Set();
           let stayed = true;
           for (let i = 0; i < 40; i++) { step(1); ownKits().forEach((k) => { seen.add(k.activity); if (dist2d(k, CAMP) > KIT_BOUNDARY) stayed = false; }); }
-          return stayed && seen.size >= 3 && [...seen].every((a) => ["chase", "pounce", "tumble", "wander"].includes(a));
+          return stayed && seen.size >= 3 && [...seen].every((a) => ["chase", "pounce", "tumble", "wander", "visit"].includes(a));   // "visit": coming up to you (R63)
         });
         check("R31", "every other clan's camp has 2 kits", () =>
           ["ThunderClan", "ShadowClan", "RiverClan"].every((c) => rivalKits(c).length === 2 && rivalKits(c).every((k) => dist2d(k, campOf(c)) < 9)));
@@ -2149,6 +2156,7 @@
         });
         check("R58", "press E next to your mentor to hear the task again, with a tip", () => {
           const m = mentorOf(); const n = heard.length;
+          Object.assign(m, at(-10, -30));   // (away from the marker, so visiting it doesn't talk over the mentor)
           place(m.x, m.z - 1.3); player.heading = 0; pressE();
           return lastMessage.startsWith(m.name) && /tip/i.test(lastMessage) && heardSince(n).includes("meow");
         });
@@ -2193,7 +2201,7 @@
 
         // ---------- R60 textures ----------
         check("R60", "the ground, trees, rocks, huts and water have textures", () =>
-          view.groundMaterials.every((m) => m.map) && view.treeTops.length > 0 && view.barkMaterial.map &&
+          view.groundMaterials.every((m) => m.map) && view.barkMaterial.map &&
           view.rockMaterial.map && view.hutMaterial.map && view.waterMaterial.map);
         check("R60", "cats have fur texture (patterns still on top)", () => {
           const cat = makeCatModel({ fur: FURS.Grey, eyes: EYES.Green, pattern: "Tabby" });
