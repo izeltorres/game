@@ -151,11 +151,16 @@
       return p;
     }
     // x of the water in the player's own territory: a spot in it, and a spot on its bank
-    function waterX() {
-      return CAMP.x > 0 ? (RIVER_X0 + RIVER_X1) / 2 : (STREAM_X0 + STREAM_X1) / 2;
+    // The river bends (R74), so where its edges are depends on z
+    function riverAt(z) {
+      return watersAt(z)[0];
     }
-    function bankX() {
-      return CAMP.x > 0 ? RIVER_X0 - 1 : STREAM_X0 - 1;
+    function waterX(z) {
+      const z_ = z === undefined ? CAMP.z : z;
+      return CAMP.x > 0 ? (riverAt(z_).x0 + riverAt(z_).x1) / 2 : (STREAM_X0 + STREAM_X1) / 2;
+    }
+    function bankX(z) {
+      return CAMP.x > 0 ? riverAt(z === undefined ? CAMP.z : z).x0 - 1 : STREAM_X0 - 1;
     }
     // A fresh game as an apprentice (no mentor unless given), free to leave camp
     function freshApprentice(mentorId, clan) {
@@ -449,12 +454,12 @@
         check("R35", "pressing E by the water starts fishing, facing the water", () => {
           quiet(); startFishing();
           const paw = pawSpot();
-          return fishing.active === true && inRiver(paw.x);
+          return fishing.active === true && inRiver(paw.x, paw.z);
         });
         check("R35", "fish swim about under the surface in the water", () => {
           const before = fishing.fish.map((f) => ({ x: f.x, z: f.z }));
           step(1);
-          return fishing.fish.length >= 3 && fishing.fish.every((f) => inRiver(f.x)) &&
+          return fishing.fish.length >= 3 && fishing.fish.every((f) => inRiver(f.x, f.z)) &&
             fishing.fish.some((f, i) => dist2d(f, before[i]) > 0.1);
         });
         check("R35", "a swipe with no fish under the paw misses, splashes, and fish dart away", () => {
@@ -517,8 +522,8 @@
           return dist2d(theMentor(), CAMP) < 9;
         });
         check("R4", "rogue runs away", () => rogue.state === "gone" || (step(5), rogue.state === "gone"));
-        check("R9", "a new rogue appears some time after the last one is chased off: now a roaming pack (R62)", () => {
-          step(ROGUE_RESPAWN + 1);
+        check("R9", "a new rogue appears some time after the last one is chased off: now a roaming pack (R62), after 40 s (R77)", () => {
+          step(ROGUE_PACK_RESPAWN + 1);
           return rogue.state === "roaming" && rogue.hp === ROGUE_PACK_HP && rogueMates.length >= 1 && rogueMates.length <= 2;
         });
         check("R9", "winning fights after choosing a role is counted", () => {
@@ -705,7 +710,7 @@
         check("R6", "RiverClan swims faster than other clans", () => {
           const swim = (clan) => {
             freshApprentice(null, clan);
-            place(waterX(), CAMP.z - 20);
+            place(waterX(CAMP.z - 20), CAMP.z - 20);
             keys.KeyW = true; step(1); releaseAll();
             return player.z - (CAMP.z - 20);
           };
@@ -1307,12 +1312,12 @@
         const goToDen = (id) => { const d = dens.find((x) => x.id === id); place(d.x, d.z); };
         check("R20", "resting in your den heals you and skips to the next morning", () => {
           dayTime = 0.6 * DAY_LENGTH; day = 1; player.hp = 30;
-          goToDen("warriors"); pressE();
+          goToDen("warriors"); pressE(); step(SLEEP_TIME + 0.1);   // (you curl up for a moment first, R71)
           return player.hp === 100 && day === 2 && clockText() === "07:12";
         });
         check("R20", "resting before 07:12 wakes you the same day", () => {
           dayTime = 0.1 * DAY_LENGTH; day = 3; player.hp = 30;
-          goToDen("warriors"); pressE();
+          goToDen("warriors"); pressE(); step(SLEEP_TIME + 0.1);
           return player.hp === 100 && day === 3 && clockText() === "07:12";
         });
         check("R20", "another rank's den tells you which den is yours", () => {
@@ -2038,18 +2043,18 @@
         // ---------- R51 prey can't swim ----------
         check("R51", "frightened prey runs along the bank instead of into the water", () => {
           freshApprentice(null, "WindClan");
-          const m = addPrey("mouse", { x: RIVER_X0 - 1.5, z: CAMP.z });
+          const m = addPrey("mouse", { x: riverAt(CAMP.z).x0 - 1.5, z: CAMP.z });
           Object.assign(m, { state: "fleeing", dirX: 1, dirZ: 0.2 });
-          place(RIVER_X0 - 4, CAMP.z);
+          place(riverAt(CAMP.z).x0 - 4, CAMP.z);
           let wet = false;
-          for (let i = 0; i < 120; i++) { step(1 / 60); if (inRiver(m.x)) wet = true; }
+          for (let i = 0; i < 120; i++) { step(1 / 60); if (inRiver(m.x, m.z)) wet = true; }
           return !wet;
         });
         check("R51", "prey never appears in the water", () => {
           freshApprentice(null, "WindClan");
           let wet = false;
-          for (let i = 0; i < 200; i++) { const s = preySpot(); if (nearRiver(s.x) && inRiver(s.x)) wet = true; }
-          return !wet && prey.every((p) => !inRiver(p.x));
+          for (let i = 0; i < 200; i++) { const s = preySpot(); if (inRiver(s.x, s.z)) wet = true; }
+          return !wet && prey.every((p) => !inRiver(p.x, p.z));
         });
 
         // ---------- R55 bigger screen ----------
@@ -2170,29 +2175,32 @@
 
         // ---------- R59 the river ----------
         freshApprentice(null, "WindClan"); quiet();
-        const riverMid = (RIVER_X0 + RIVER_X1) / 2;
+        // (level with the camp the river is at the top of a bend (R74), so it runs straight along z there)
+        const rz = CAMP.z;
+        const rv = riverAt(rz);
+        const riverMid = (rv.x0 + rv.x1) / 2;
         check("R59", "the middle of the river is deep and the edges are shallow", () =>
-          waterDepthAt(riverMid) === "deep" && waterDepthAt(RIVER_X0 + 0.5) === "shallow" && waterDepthAt(RIVER_X1 - 0.5) === "shallow" &&
-          waterDepthAt(RIVER_X0 - 1) === null);
+          waterDepthAt(riverMid, rz) === "deep" && waterDepthAt(rv.x0 + 0.5, rz) === "shallow" && waterDepthAt(rv.x1 - 0.5, rz) === "shallow" &&
+          waterDepthAt(rv.x0 - 1, rz) === null);
         check("R59", "the current pushes swimmers downstream", () => {
-          place(riverMid, CAMP.z - 20); step(1);
-          return player.z < CAMP.z - 20 - 0.8 && Math.abs(player.x - riverMid) < 0.01;
+          place(riverMid, rz); step(1);
+          return player.z < rz - 0.8 && Math.abs(player.x - riverMid) < 0.01;
         });
         check("R59", "you wade in the shallows: slower, but no current", () => {
-          place(RIVER_X0 + 0.5, CAMP.z - 20); step(1);
-          const still = Math.abs(player.z - (CAMP.z - 20)) < 0.01;
-          place(RIVER_X0 + 0.5, CAMP.z - 20); keys.KeyW = true; step(1); releaseAll();
-          const wade = player.z - (CAMP.z - 20);
+          place(rv.x0 + 0.5, rz); step(1);
+          const still = Math.abs(player.z - rz) < 0.01;
+          place(rv.x0 + 0.5, rz); keys.KeyW = true; step(1); releaseAll();
+          const wade = Math.abs(player.z - rz);
           return still && Math.abs(wade - WALK_SPEED * CLANS.WindClan.speed * 0.75) < 0.2;
         });
         check("R59", "stepping stones cross the river and count as dry land", () => {
-          const s = steppingStones.find((st) => st.x > RIVER_X0 && st.x < RIVER_X1);
+          const s = steppingStones.find((st) => inRiver(st.x, st.z) && st.x > 0);
           place(s.x, s.z); step(1);
           return steppingStones.length >= 6 && onSteppingStone(player) && dist2d(player, s) < 0.05;
         });
         check("R59", "walking into the water splashes", () => {
           const n = heard.length;
-          place(RIVER_X0 - 0.3, CAMP.z - 20); player.heading = Math.PI / 2;
+          place(rv.x0 - 0.3, rz); player.heading = Math.PI / 2;
           keys.KeyW = true; step(0.5); releaseAll();
           return player.splashTimer > 0 && heardSince(n).includes("splash");
         });
@@ -2225,7 +2233,7 @@
         });
         check("R61", "the river can be heard near water", () => {
           placeAt(0, -30); const far = soundLevels().river;
-          place(RIVER_X0 - 1, CAMP.z); const near = soundLevels().river;
+          place(riverAt(CAMP.z).x0 - 1, CAMP.z); const near = soundLevels().river;
           return far === 0 && near > 0;
         });
         check("R61", "cats hiss when a fight starts and you hear swipes", () => {
@@ -2256,7 +2264,7 @@
         const spawnPack = () => { rogue.state = "gone"; rogue.respawn = 0; step(0.1); };
         check("R62", "after the apprenticeship rogues come in packs of 2-3, tougher and harder-hitting", () => {
           spawnPack();
-          return rogue.state === "roaming" && rogue.smart && rogue.hp === ROGUE_PACK_HP && ROGUE_PACK_HP > ROGUE_HP &&
+          return rogue.state === "roaming" && rogue.smart && rogue.hp === ROGUE_PACK_HP && ROGUE_PACK_HP > ROGUE_HP && rogueMates.every((m) => m.hp === ROGUE_MATE_HP) &&
             rogueMates.length >= 1 && rogueMates.length <= 2 && ROGUE_PACK_DAMAGE > 14;
         });
         check("R62", "pack rogues roam your territory", () => {
@@ -2400,10 +2408,11 @@
         });
 
         // ---------- R67 markers ----------
-        check("R67", "border markers are tall glowing posts, the next one brightest", () => {
+        check("R72", "border markers are glowing highlights on the ground (no poles), the next one brightest (changes R67)", () => {
           markersVisited = 0; renderFrame();
           const m = view.markerModels;
-          return m.length === 3 && m.every((p) => p.visible && p.userData.height >= 3) &&
+          const flat = (g) => { const box = new THREE.Box3().setFromObject(g); return box.max.y - box.min.y < 0.3; };
+          return m.length === 3 && m.every((p) => p.visible && !p.userData.post && flat(p) && p.userData.radius >= 1.2) &&
             m[0].userData.glow > m[1].userData.glow;
         });
         check("R67", "markers are on the map", () => {
@@ -2505,6 +2514,204 @@
           return afterThree === 0 && stats.hunts === 1;
         });
 
+        // ================= Round 7 =================
+
+        // ---------- R70 nametags ----------
+        freshApprentice("hunter", "WindClan"); quiet();
+        check("R70", "important cats: your mentor, every leader and every medicine cat - not ordinary camp cats", () => {
+          const list = importantCats();
+          const mentorCatNow = campCats.find((c) => c.mentorId === mentor);
+          return list.includes(mentorCatNow) && leaders.every((l) => list.includes(l)) && medicineCats.every((m) => list.includes(m)) &&
+            !list.some((c) => campCats.includes(c) && c !== mentorCatNow) && list.length === 1 + 4 + 4;
+        });
+        check("R70", "a deputy's apprentice gets a nametag; the old mentor doesn't", () => {
+          freshWithRole("Deputy", "WindClan"); quiet();
+          const list = importantCats();
+          return trainee && list.includes(trainee) && !list.some((c) => campCats.includes(c));
+        });
+        check("R70", "nametags are drawn over nearby important cats, showing their names", () => {
+          placeAt(0, -8); renderFrame();
+          const own = leaders.find((l) => l.clan === clanName);
+          const tag = view.nametags.find((t) => t.userData.source === own);
+          return tag && tag.visible && tag.userData.text === own.name && tag.position.y > 1;
+        });
+        check("R70", "nametags of cats far away are hidden", () => {
+          const far = leaders.find((l) => l.clan === "ThunderClan");
+          const tag = view.nametags.find((t) => t.userData.source === far);
+          return tag && !tag.visible;
+        });
+
+        // ---------- R71 curling up to sleep ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        check("R71", "pressing E in your den makes your cat curl up asleep for a moment; you can't move", () => {
+          rogue.state = "gone"; rogueMates = [];
+          dayTime = 0.6 * DAY_LENGTH; day = 1; player.hp = 40;
+          const d = dens.find((x) => x.id === "warriors"); place(d.x, d.z); pressE();
+          const spot = { x: player.x, z: player.z };
+          keys.KeyW = true; step(1); releaseAll();
+          renderFrame();
+          return player.sleeping > 0 && dist2d(player, spot) < 0.01 && view.playerModel.userData.posture === "curl" && day === 1;
+        });
+        check("R71", "then you wake up the next morning with full health", () => {
+          step(SLEEP_TIME);
+          renderFrame();
+          return !(player.sleeping > 0) && day === 2 && player.hp === 100 && view.playerModel.userData.posture !== "curl";
+        });
+
+        // ---------- R73 branches ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        const branchTree = () => {
+          const spot = at(12, -30);
+          const t = { x: spot.x, z: spot.z, r: 0.6, h: 14, kind: "oak", phase: 0,
+                      branches: [{ y: 1.8, angle: 0, length: 2.2 }, { y: 4, angle: Math.PI, length: 2 }] };
+          trees.push(t);
+          return t;
+        };
+        check("R73", "every tree has a branch low enough for every clan (2 units or lower)", () => {
+          clanName = "WindClan"; resetGame();
+          return trees.length > 20 && trees.every((t) => t.branches && t.branches.length >= 1 && t.branches.some((b) => b.y <= 2));
+        });
+        check("R73", "climb to a branch and press E: your cat steps out and lies along it", () => {
+          freshWithRole("Warrior", "WindClan"); quiet();
+          const t = branchTree();
+          place(t.x, t.z - 0.6 - 0.45);
+          keys.KeyW = true; step(1.5); releaseAll();   // WindClan climbs to 2 units
+          pressE();
+          const b = player.onBranch;
+          return b === t.branches[0] && dist2d(player, t) > t.r + 0.5 && Math.abs(player.y - 1.8) < 0.05 && !player.climbing;
+        });
+        check("R73", "on a branch, rogues can't reach you", () => {
+          player.hp = 100;
+          Object.assign(rogue, { x: player.x, z: player.z - 1.5, state: "fighting", hp: ROGUE_HP, cooldown: 0, windup: 0, stagger: 0, smart: false });
+          step(3);
+          rogue.state = "gone";
+          return player.hp === 100 && player.onBranch;
+        });
+        check("R73", "the cat is drawn lying on the branch", () => {
+          renderFrame();
+          return view.playerModel.userData.posture === "lie" && Math.abs(view.playerModel.position.y - player.y) < 0.3;
+        });
+        check("R73", "press E again to go back to the trunk", () => {
+          pressE();
+          return !player.onBranch && player.climbing && Math.abs(player.y - 1.8) < 0.05;
+        });
+        check("R73", "from a high branch you can look out (ThunderClan)", () => {
+          freshWithRole("Warrior", "ThunderClan"); quiet();
+          const t = branchTree();
+          place(t.x, t.z - 0.6 - 0.45);
+          keys.KeyW = true; for (let i = 0; i < 300 && player.y < 4; i++) step(1 / 60); releaseAll();
+          pressE();
+          return player.onBranch === t.branches[1] && lookingOut();
+        });
+        check("R73", "Space jumps down from a branch", () => {
+          press("Space"); step(2);
+          return !player.onBranch && !player.climbing && player.y === 0;
+        });
+        check("R73", "branches are drawn on the trees", () => {
+          freshWithRole("Warrior", "WindClan"); buildScene(); renderFrame();
+          return view.branchModels.length === trees.reduce((n, t) => n + t.branches.length, 0);
+        });
+
+        // ---------- R74 winding river ----------
+        check("R74", "the river bends up to 5 units either way, one bend every 80 units; the stream stays straight", () => {
+          const mid = (z) => (riverAt(z).x0 + riverAt(z).x1) / 2;
+          const stream = watersAt(20)[1];
+          return Math.abs(mid(0) - 33) < 0.01 && Math.abs(mid(20) - 38) < 0.01 && Math.abs(mid(-20) - 28) < 0.01 && Math.abs(mid(80) - 33) < 0.01 &&
+            Math.abs(riverAt(13).x1 - riverAt(13).x0 - 6) < 0.01 && stream.x0 === STREAM_X0 && stream.x1 === STREAM_X1;
+        });
+        check("R74", "the water follows the bends: wet and deep where the river is, dry where it was", () =>
+          inRiver(38, 20) && waterDepthAt(38, 20) === "deep" && !inRiver(31, 20) && waterDepthAt(31, 20) === null && inRiver(31, -20));
+        check("R74", "swimming follows the bend", () => {
+          freshApprentice(null, "WindClan"); quiet();
+          place(38, 20); step(0.2);
+          const there = swimming(player);
+          place(31, 20); step(0.2);
+          return there && !swimming(player);
+        });
+        check("R74", "the map, grass and drawn water follow the bend", () => {
+          press("KeyM");
+          const wet = colorClose(mapPixel(38, 20), "#2f6fb0");
+          const dry = !colorClose(mapPixel(31, 20), "#2f6fb0");
+          press("KeyM");
+          return wet && dry && !grassAllowedAt(38, 20) && grassAllowedAt(30.5, 20) && view.riverMesh &&
+            Math.abs(view.riverMesh.userData.middleAt(20) - 38) < 0.3;
+        });
+
+        // ---------- R75 call a patrol ----------
+        freshWithRole("Warrior", "WindClan"); quiet();
+        check("R75", "V with no rogue pack attacking does nothing but say so", () => {
+          rogue.state = "gone"; rogue.respawn = 999; rogueMates = [];
+          press("KeyV");
+          return helpers.length === 0 && /no rogue/i.test(lastMessage);
+        });
+        check("R75", "V while a rogue pack attacks: 3 of your clan's warriors come out of camp", () => {
+          placeAt(-20, -25);
+          rogue.respawn = 0; step(0.1);
+          Object.assign(rogue, { x: player.x, z: player.z + 4 }); step(0.3);
+          press("KeyV");
+          const m = campCats.find((c) => c.mentorId);
+          return rogue.state === "fighting" && helpers.length === 3 && helpers.every((h) => campCats.includes(h) && !h.injured && !h.mentorId) &&
+            CALL_COOLDOWN === 60;
+        });
+        check("R75", "the patrol runs to you and fights the rogues", () => {
+          const hp = rogue.hp + rogueMates.reduce((n, r) => n + r.hp, 0);
+          let near = false;
+          for (let i = 0; i < 20; i++) { player.hp = 100; step(1); if (helpers.some((h) => dist2d(h, player) < 4)) near = true; }
+          const after = rogue.state === "fighting" ? rogue.hp + rogueMates.reduce((n, r) => n + r.hp, 0) : 0;
+          return near && after < hp;
+        });
+        check("R75", "you can't call again straight away", () => {
+          const n = helpers.length;
+          press("KeyV");
+          return helpers.length === n && /wait|soon/i.test(lastMessage);
+        });
+        check("R75", "when the pack flees the patrol goes back to camp, and the win counts for you", () => {
+          const fights = stats.fights;
+          for (let i = 0; i < 60 && rogue.state === "fighting"; i++) { player.hp = 100; step(1); }
+          const fled = rogue.state === "fleeing" || rogue.state === "gone";
+          for (let i = 0; i < 30 && helpers.length; i++) step(1);
+          return fled && stats.fights === fights + 1 && helpers.length === 0 && campCats.every((c) => !c.helping);
+        });
+
+        // ---------- R76 rain ----------
+        check("R76", "newleaf and leaf-fall are rainy; greenleaf only has storms; leaf-bare has no rain", () => {
+          const count = (s, w) => weatherChoicesFor(s).filter((x) => x === w).length;
+          return count("newleaf", "rain") === 3 && count("leaf-fall", "rain") === 4 && count("greenleaf", "rain") === 0 &&
+            count("greenleaf", "storm") === 1 && count("leaf-bare", "rain") === 0 && count("leaf-bare", "storm") === 0 &&
+            SEASONS.every((s) => weatherChoicesFor(s).length === 12);
+        });
+        check("R76", "rain and storms last half as long as other weather", () => {
+          setWeather("rain"); const rain = weatherTimer;
+          setWeather("storm"); const storm = weatherTimer;
+          setWeather("fog"); const fog = weatherTimer;
+          setWeather("clear");
+          return rain === WEATHER_TIME / 2 && storm === WEATHER_TIME / 2 && fog === WEATHER_TIME;
+        });
+        check("R76", "over a year it rains much less than before (under 15% of the time; it was about 25%)", () => {
+          const wetShare = (s) => {
+            const list = weatherChoicesFor(s);
+            const len = (w) => (w === "rain" || w === "storm" ? 0.5 : 1);
+            const wet = list.filter((w) => w === "rain" || w === "storm").reduce((n, w) => n + len(w), 0);
+            return wet / list.reduce((n, w) => n + len(w), 0);
+          };
+          const year = SEASONS.reduce((n, s) => n + wetShare(s), 0) / 4;
+          return year < 0.15 && wetShare("newleaf") > wetShare("greenleaf") && wetShare("leaf-fall") > wetShare("greenleaf");
+        });
+
+        // ---------- R77 tougher, rarer rogue packs ----------
+        check("R77", "pack leaders have 130 health and the others 80", () => {
+          freshWithRole("Warrior", "WindClan"); quiet(); placeAt(-40, -40);
+          rogue.state = "gone"; rogue.respawn = 0; step(0.1);
+          return ROGUE_PACK_HP === 130 && ROGUE_MATE_HP === 80 && rogue.hp === 130 && rogueMates.length >= 1 && rogueMates.every((m) => m.hp === 80);
+        });
+        check("R77", "after a pack is chased off, the next comes after 40 seconds instead of 20", () => {
+          Object.assign(rogue, { x: player.x, z: player.z + 1.2, hp: 1, stagger: 2, state: "fighting" });
+          player.heading = 0; player.attackCooldown = 0; pressE();
+          step(4);
+          return ROGUE_PACK_RESPAWN === 2 * ROGUE_RESPAWN && ROGUE_PACK_RESPAWN === 40 && rogue.state === "gone" &&
+            rogue.respawn > ROGUE_RESPAWN && (step(ROGUE_RESPAWN + 1), rogue.state === "gone") && (step(ROGUE_RESPAWN), rogue.state === "roaming");
+        });
+
         // ================= R24 grass (drawing) =================
         check("R24", "there are more than 8000 grass blades around the cat", () => view.grass.count >= 8000);
         check("R24", "each blade is tapered and bends in several segments", () => {
@@ -2537,7 +2744,7 @@
         check("R24", "grass colour depends on the territory", () =>
           Object.keys(CLANS).every((c) => view.grassUniforms.uColors.value.some((col) => col.equals(new THREE.Color(PLACES[CLANS[c].biome].grass)))));
         check("R24", "no grass grows in water or on bare camp ground", () =>
-          !grassAllowedAt((RIVER_X0 + RIVER_X1) / 2, 50) && !grassAllowedAt(CAMP.x + 1, CAMP.z + 1) && grassAllowedAt(CAMP.x, CAMP.z - 30));
+          !grassAllowedAt((riverAt(50).x0 + riverAt(50).x1) / 2, 50) && !grassAllowedAt(CAMP.x + 1, CAMP.z + 1) && grassAllowedAt(CAMP.x, CAMP.z - 30));
 
         // ================= Drawing (3D) =================
         resetGame(); playing = true; stage = 2; role = "Warrior";
