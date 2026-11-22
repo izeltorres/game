@@ -331,6 +331,9 @@ from R9 changes as described in R43.
   apprentice (its name changes to -paw and it grows) and follows the deputy. Three lessons, in order:
   1. **Hunting lesson:** the apprentice catches 3 prey near you (within 15 units).
   2. **Battle practice:** face your apprentice and press E to land 3 practice hits (no harm done).
+     Your apprentice comes to stand in front of you, crouched and facing you, and stays there so you can
+     turn to face it (it only moves again if you walk more than 5 units away). Now and then it play-swipes
+     back, which does no harm. (Fixed after Round 7: it used to keep running round behind you.)
   3. **Border patrol:** visit the 3 border markers with your apprentice.
 
   After the lessons, the apprentice becomes a warrior and goes back to camp.
@@ -690,7 +693,9 @@ numbers don't clash.
 
 ### R77. Tougher rogue packs that come less often (changes R62)
 - Pack rogues are tougher: the pack leader has 130 health (was 90), the others 80 (was 60).
-- After a pack is chased off, the next one comes after 40 seconds instead of 20 (half as often).
+- After a pack is chased off, the next one waits twice as long as before: **4 minutes**. The first pack comes
+  **2 minutes** after the apprentice's rogue is chased off. (The owner asked for longer waits after
+  Round 7; it was 40 and 20 seconds.)
 - Everything else in R62 stays: beating the leader makes the whole pack flee, and they still roam,
   hunt you and raid the camp.
 

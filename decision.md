@@ -105,3 +105,10 @@
 - R75: calling for help brings a clan patrol, at any rank.
 - R76: two rainy seasons (newleaf and leaf-fall).
 - R77: rogue packs are tougher and come half as often.
+
+## After Round 7 (2026-11-22)
+
+- Rogue packs should come less often still ("wait longer"): the first pack now comes 2 minutes after
+  the apprentice's rogue, and later packs 4 minutes after one is chased off (were 20 and 40 seconds).
+- Fix the deputy's apprentice so you can face it to tussle in battle practice (it kept running round
+  behind you).

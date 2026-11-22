@@ -1567,7 +1567,8 @@ function updateKitModels(t) {
     poseCat(model, {
       x: k.x, y: pounce ? Math.abs(Math.sin(t * 6 + i)) * 0.25 : 0, z: k.z, heading: k.heading, size: k.size,
       moving: k.moving, running: k.activity === "chase", walk: k.walk, airborne: pounce && Math.sin(t * 6 + i) > 0.3,
-      crouch: (k.activity === "pounce" || k.activity === "playpounce") && !k.moving,
+      crouch: ((k.activity === "pounce" || k.activity === "playpounce") && !k.moving) || (k.lesson === "battle" && !k.moving),
+      fighting: k === trainee && k.lesson === "battle", attack: k.attackTimer > 0,   // squaring up for battle practice
       idle: k.activity === "visit" && !k.moving ? 6 : 0,
     }, t);
     if (k.activity === "visit" && !k.moving) model.userData.head.rotation.x = -0.4;   // R63: looking up at you

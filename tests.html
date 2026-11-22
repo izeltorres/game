@@ -524,7 +524,7 @@
         });
         check("R4", "rogue runs away", () => rogue.state === "gone" || (step(5), rogue.state === "gone"));
         check("R9", "a new rogue appears some time after the last one is chased off: now a roaming pack (R62)", () => {
-          step(ROGUE_RESPAWN + 1);   // (the first pack comes 20 s after the apprentice's rogue; later packs wait 40 s, see R77)
+          step(ROGUE_RESPAWN + 1);   // (the first pack comes 2 minutes after the apprentice's rogue; later packs wait 4, see R77)
           return rogue.state === "roaming" && rogue.hp === ROGUE_PACK_HP && rogueMates.length >= 1 && rogueMates.length <= 2;
         });
         check("R9", "winning fights after choosing a role is counted", () => {
@@ -573,6 +573,19 @@
           for (let i = 0; i < 3; i++) addPrey("mouse", { x: player.x + 4 + i * 2, z: player.z + 5 });
           step(15);
           return lesson && trainee.lesson === "battle";
+        });
+        check("R39", "battle practice: your apprentice squares up in front of you and stays put, so you can turn to face it", () => {
+          place(player.x, player.z);
+          Object.assign(trainee, { x: player.x - 6, z: player.z - 6, sparSpot: null });
+          step(3);
+          const squared = dist2d(trainee, player) < 2.2 && inFront(player, player.heading, trainee, 2.2, 0.35);
+          const spot = { x: trainee.x, z: trainee.z };
+          player.heading += Math.PI / 2; step(1);   // turn away: it must not run round behind you
+          const stayed = dist2d(trainee, spot) < 0.2;
+          player.heading = Math.atan2(trainee.x - player.x, trainee.z - player.z);   // face it again
+          const before = trainee.lessonCount; pressE();
+          trainee.lessonCount = before; player.attackCooldown = 0;   // (the next check counts its own 3 hits)
+          return squared && stayed && trainee.lessonCount === before && lastMessage.includes("Practice hit");
         });
         check("R39", "battle practice: 3 practice hits with E, facing your apprentice, do no harm", () => {
           let hits = 0;
@@ -2711,11 +2724,11 @@
           rogue.state = "gone"; rogue.respawn = 0; step(0.1);
           return ROGUE_PACK_HP === 130 && ROGUE_MATE_HP === 80 && rogue.hp === 130 && rogueMates.length >= 1 && rogueMates.every((m) => m.hp === 80);
         });
-        check("R77", "after a pack is chased off, the next comes after 40 seconds instead of 20", () => {
+        check("R77", "after a pack is chased off, the next waits twice as long: 4 minutes (the first pack waits 2)", () => {
           Object.assign(rogue, { x: player.x, z: player.z + 1.2, hp: 1, stagger: 2, state: "fighting" });
           player.heading = 0; player.attackCooldown = 0; pressE();
           step(4);
-          return ROGUE_PACK_RESPAWN === 2 * ROGUE_RESPAWN && ROGUE_PACK_RESPAWN === 40 && rogue.state === "gone" &&
+          return ROGUE_PACK_RESPAWN === 2 * ROGUE_RESPAWN && ROGUE_PACK_RESPAWN === 240 && ROGUE_RESPAWN === 120 && rogue.state === "gone" &&
             rogue.respawn > ROGUE_RESPAWN && (step(ROGUE_RESPAWN + 1), rogue.state === "gone") && (step(ROGUE_RESPAWN), rogue.state === "roaming");
         });
 

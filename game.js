@@ -23,7 +23,7 @@ const RIVER_BEND = 5;      // R74: the river's middle moves up to this far eithe
 const RIVER_WAVE = 80;     // ...one full bend every this many units of z (the stream stays straight)
 
 const ROGUE_HP = 60;
-const ROGUE_RESPAWN = 20;        // seconds until a new rogue shows up (R9)
+const ROGUE_RESPAWN = 120;       // seconds until the first rogue pack shows up after the apprentice's rogue (R9; owner: wait longer)
 const PATROL_HP = 40;            // enemy patrol cats (R16)
 const PATROL_SIGHT = 14;
 const PATROL_RECOVER = 30;
@@ -171,7 +171,7 @@ const WADE_SPEED = 0.75;
 const STONE_CROSSINGS = [20, -20]; // z of the stepping-stone crossings over both waters
 const ROGUE_PACK_HP = 130;         // rogue packs after the apprenticeship (R62); tougher in R77 (was 90)
 const ROGUE_MATE_HP = 80;          // the rest of a pack (R77; was 60)
-const ROGUE_PACK_RESPAWN = 40;     // R77: packs come half as often as single rogues did
+const ROGUE_PACK_RESPAWN = 240;    // R77: after a pack is chased off, the next waits twice as long (owner: wait longer)
 const ROGUE_PACK_DAMAGE = 18;
 const ROGUE_SIGHT = 18;
 const ROGUE_RAID_AFTER = 120;      // a pack not chased off by then raids your camp
@@ -2242,6 +2242,24 @@ function finishTraining() {
 
 // The deputy's apprentice follows, and during the hunting lesson catches prey near the deputy
 function updateTrainee(t, dt) {
+  if (t.lesson === "battle") {
+    // Battle practice: square up in front of you and stay put, so you can turn to face it and tussle.
+    // It only moves again if you walk away.
+    if (!t.sparSpot || distance(player, t.sparSpot) > 5) t.sparSpot = behindPlayer(-1.5, 0);
+    const d = distance(t, t.sparSpot);
+    if (d > 0.3) {
+      moveToward(t, t.sparSpot, Math.min(d * 3, 7), dt);
+    } else {
+      t.moving = false;
+      t.heading = Math.atan2(player.x - t.x, player.z - t.z);
+      // A harmless play-swipe back now and then
+      t.sparTimer = (t.sparTimer || 0) - dt;
+      if (t.sparTimer <= 0) { t.sparTimer = 1.5 + Math.random(); t.attackTimer = 0.25; }
+    }
+    t.attackTimer = Math.max(0, (t.attackTimer || 0) - dt);
+    return;
+  }
+  t.sparSpot = null;
   if (t.lesson === "hunt") {
     const target = allCritters()
       .filter((c) => critterVisible(c) && distance(c, player) < 15)
