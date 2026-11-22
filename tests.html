@@ -283,6 +283,8 @@
 
         // ================= R42, R45, R41: the kit stage, in camp =================
         check("R42", "a kit can't walk out of camp", () => {
+          // (move solid cats, R58, out of the kit's way: it walks straight ahead from the middle of camp)
+          [...campCats, ...kits, ...medicineCats].forEach((c) => { if (Math.abs(c.x - CAMP.x) < 1.5) c.x += 4; });
           placeAt(0, 0); player.heading = 0; // WindClan: straight ahead runs between the nursery and the apprentices' den
           keys.KeyW = true; step(4); releaseAll();
           return dist2d(player, CAMP) <= KIT_BOUNDARY + 0.01 && dist2d(player, CAMP) > KIT_BOUNDARY - 1 && /camp/i.test(lastMessage);
@@ -564,6 +566,7 @@
         check("R39", "a new deputy gets one of the camp kits as its apprentice (-paw)", () =>
           trainee && kits.includes(trainee) && trainee.clan === clanName && trainee.name.endsWith("paw"));
         check("R39", "your apprentice follows you", () => {
+          quiet();   // (in its hunting lesson it would chase any prey within 15 units instead)
           placeAt(-15, -25); step(8);
           return dist2d(trainee, player) < 5;
         });
