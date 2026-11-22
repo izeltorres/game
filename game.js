@@ -196,6 +196,12 @@ const HELPER_DAMAGE = 8;
 const HELPER_SWIPE = 1.2;          // seconds between a helper's swipes
 const HELP_TIME = 60;              // a called patrol goes home after this long at most
 const BRANCH_REACH = 0.6;          // R73: how close to a branch's height you must be to step onto it
+// ---------- Round 8 ----------
+const LAND_STEP = 10;              // R78: a border moves this far...
+const LAND_WIN = 5;                // ...when the land score with a neighbour reaches +-5
+const LAND_MAX = 30;               // ...and never more than this from the middle line
+const CAMP_SAFE = 15;              // R79: rogues don't fight within this distance of a camp's middle
+const ROGUE_SOLO_HP = 100;         // R83: the single rogue a warrior faces
 const DEMOS = { patrol: "sniff", squirrel: "stalk", climb: "look-up", fish: "swipe", rogue: "fight" };   // R58
 const TIPS = {
   patrol: "Tip: the markers glow, and the next one glows brightest.",
@@ -322,6 +328,8 @@ let leaders = [];           // every clan's leader (R69a)
 let steppingStones = [];    // stepping stones across the water (R59)
 let socialClock = SOCIAL_TIME;   // when camp cats next pair up (R63)
 let helpers = [];           // camp cats answering your call for help (R75)
+let borders = { x: { "-1": 0, 1: 0 }, z: { "-1": 0, 1: 0 } };   // R78: where the borders are (x: north-south border by half; z: east-west)
+let landScore = {};         // R78: land won (+) or lost (-) against each neighbour
 let callCooldown = 0;
 
 // Places for the player's own clan (filled in by resetGame)
@@ -354,7 +362,7 @@ let dropped = [];       // prey dropped on the ground (R27)
 let kits = [];          // kits in every camp (R31); the deputy's apprentice is one of them
 
 // script.js fills these in so the logic can talk to the page
-const hooks = { message: null, afterUpdate: null, sound: null };   // sound: R61
+const hooks = { message: null, afterUpdate: null, sound: null, saveNow: null };   // sound: R61, saveNow: R84
 
 function say(text, seconds) {
   lastMessage = text;
@@ -374,13 +382,44 @@ function spotFor(clan, u, v) {
   return { x: camp.x + CLANS[clan].sx * u, z: camp.z + CLANS[clan].sz * v };
 }
 
-function territoryAt(x, z) {
-  if (x < 0) return z < 0 ? "ThunderClan" : "ShadowClan";
-  return z < 0 ? "RiverClan" : "WindClan";
+// The clan whose corner of the world this is (sx, sz = which side of the middle lines)
+function clanAtSide(sx, sz) {
+  return Object.keys(CLANS).find((c) => CLANS[c].sx === sx && CLANS[c].sz === sz);
 }
 
+// R78: whose land this is. The north-south border can be moved separately in the north and south halves,
+// and the east-west border in the west and east halves.
+function territoryAt(x, z) {
+  const sx = x < borders.x[z < 0 ? -1 : 1] ? -1 : 1;
+  const sz = z < borders.z[sx] ? -1 : 1;
+  return clanAtSide(sx, sz);
+}
+
+// The look of the land (forest, marsh...) stays with the original quarters, whoever owns it now
 function biomeAt(x, z) {
-  return CLANS[territoryAt(x, z)].biome;
+  return CLANS[clanAtSide(x < 0 ? -1 : 1, z < 0 ? -1 : 1)].biome;
+}
+
+// R78: clans that share a border (not the one across the corner)
+function neighbours(clan) {
+  const me = CLANS[clan];
+  return Object.keys(CLANS).filter((c) => (CLANS[c].sx === me.sx) !== (CLANS[c].sz === me.sz));
+}
+
+// R78: win (+) or lose (-) land against a neighbour; at LAND_WIN the shared border moves LAND_STEP
+function changeLand(clan, amount) {
+  if (!neighbours(clanName).includes(clan)) return;
+  landScore[clan] = (landScore[clan] || 0) + amount;
+  if (Math.abs(landScore[clan]) < LAND_WIN) return;
+  const dir = Math.sign(landScore[clan]);
+  landScore[clan] = 0;
+  const me = CLANS[clanName];
+  const them = CLANS[clan];
+  // Into their land (dir = 1) or into ours (dir = -1)
+  if (them.sx !== me.sx) borders.x[me.sz] = clamp(borders.x[me.sz] + them.sx * LAND_STEP * dir, -LAND_MAX, LAND_MAX);
+  else borders.z[me.sx] = clamp(borders.z[me.sx] + them.sz * LAND_STEP * dir, -LAND_MAX, LAND_MAX);
+  say(dir > 0 ? `Your clan has won land! The border with ${clan} moves into their territory.`
+              : `${clan} has taken some of your land. The border moves into your territory.`, 4);
 }
 
 // The player's home: ShadowClan lives in the marsh (R6), WindClan on the moor, and so on
@@ -469,7 +508,7 @@ function resetGame() {
   // rogue.state: waiting | fighting | fleeing | gone
   Object.assign(rogue, { x: ROGUE_HOME.x, z: ROGUE_HOME.z, hp: ROGUE_HP, heading: Math.PI, walk: 0, windup: 0,
                          cooldown: 0, hurtTimer: 0, stagger: 0, fleeTimer: 0, respawn: 0, state: "waiting",
-                         smart: false, damage: 14, raidClock: 0, raiding: false, target: null });
+                         smart: false, pack: false, damage: 14, raidClock: 0, raiding: false, target: null });
   Object.assign(fishing, { active: false, catches: 0, flash: 0, flashGood: false, fish: [] });
 
   trees = buildTrees();
@@ -488,6 +527,8 @@ function resetGame() {
   kits = buildKits();
   medicineCats = buildMedicineCats();
   // Round 6
+  borders = { x: { "-1": 0, 1: 0 }, z: { "-1": 0, 1: 0 } };   // Round 8
+  landScore = {};
   helpers = [];   // Round 7
   callCooldown = 0;
   rogueMates = [];
@@ -692,13 +733,14 @@ function watersAt(z) {
   return WATERS.map((w) => (w.bends ? { x0: w.x0 + riverShift(z), x1: w.x1 + riverShift(z) } : { x0: w.x0, x1: w.x1 }));
 }
 
-// R73: a low branch every clan can reach (2 units or lower) and a higher one for ThunderClan.
+// R73, R82: two branches, only from 3 units up, so only ThunderClan (who climb to 6) can reach them.
+// Always below the highest point the tree can be climbed (h - 2).
 // Made from the tree's phase, so no extra random numbers are drawn and the trees stay where they were.
 function branchesFor(h, phase) {
   const angle = phase * 2.3;
   return [
-    { y: 1.4 + (phase % 1) * 0.5, angle, length: 2 },
-    { y: Math.min(h - 2.5, 3.3 + ((phase * 1.3) % 2)), angle: angle + 2.6, length: 1.8 },
+    { y: Math.min(h - 2, 3 + (phase % 1) * 0.8), angle, length: 2 },
+    { y: Math.min(h - 2, 4.5 + ((phase * 1.3) % 1)), angle: angle + 2.6, length: 1.8 },
   ];
 }
 
@@ -1767,8 +1809,11 @@ function defeatEnemy(e) {
     return;
   }
   if (e.clan && rivalry[e.clan] !== undefined) changeRivalry(e.clan, 5);   // R54
+  if (e.clan && e.mode !== "raid") changeLand(e.clan, 1);                // R78: a fight won (a raid counts as a whole, below)
   e.state = "fleeing";
   e.fleeTimer = 3;
+  // R78: the last raider driven off before they stole anything wins you land
+  if (e.mode === "raid" && raiders.every((r) => r.state === "fleeing" || r.state === "gone") && !raiders.some((r) => r.stole)) changeLand(e.clan, 3);
   if (stage === 2 && role) {
     stats.fights++;
     say(`The ${e.clan} cat runs home! (fights won: ${stats.fights})`, 2.5);
@@ -1929,6 +1974,15 @@ function updateRogue(dt) {
     return;
   }
 
+  // R79: you ran into a camp - too many clan cats there, so the rogue backs off
+  // (the roaming rogues of R62/R83; the apprentice's rogue waits far from any camp anyway)
+  if (r.state === "fighting" && r.smart && inAnyCamp(player)) {
+    r.windup = 0;
+    Object.assign(r, { state: "roaming", raiding: false, target: null });
+    rogueMates.forEach((m) => { if (m.state === "fighting") { m.state = "roaming"; m.windup = 0; } });
+    say("The rogue won't follow you into a camp full of clan cats.", 2);
+    return;
+  }
   if (r.state === "waiting") {
     if (distance(player, r) > 15) return;
     r.state = "fighting";
@@ -1944,8 +1998,9 @@ function updatePatrol(c, dt) {
   c.stagger = Math.max(0, c.stagger - dt);
 
   if (c.state === "resting") {
-    // R69b: limps home and lies down to rest until its medicine cat treats it
-    if (distance(c, c.home) > 4) moveToward(c, c.home, 2, dt);
+    // R69b, R80: limps into its medicine den and lies down there until its medicine cat treats it
+    const bed = denBed(c.clan);
+    if (distance(c, bed) > 0.6) moveToward(c, bed, 2, dt);
     else c.moving = false;
     c.restTime = (c.restTime || 0) + dt;
     c.respawn -= dt;
@@ -2012,7 +2067,10 @@ function hurtPlayer(amount, from) {
   player.x += Math.sin(from.heading) * 1;
   player.z += Math.cos(from.heading) * 1;
   pushOutOfObstacles(player, CAT_R);
-  if (player.hp <= 0) knockedOut("You were beaten... You wake up back at camp. Rest, then try again.");
+  if (player.hp <= 0) {
+    if (from && from.clan) changeLand(from.clan, -1);   // R78: beaten by a neighbour's cat
+    knockedOut("You were beaten... You wake up back at camp. Rest, then try again.");
+  }
 }
 
 // ======================================================
@@ -2124,6 +2182,7 @@ function chooseMentor(id) {
   choosingMentor = false;
   taskIndex = 0;
   giveTask();   // R44: the mentor gives the first task straight away
+  requestSave();   // R84
 }
 
 function mentorName() {
@@ -2148,6 +2207,7 @@ function chooseRole(choice) {
     say(`${ceremony} To become deputy: catch ${DEPUTY_NEEDS.hunts} prey, win ${DEPUTY_NEEDS.fights} fights ` +
         `and lead a border patrol.`, 6);
   }
+  requestSave();   // R84
 }
 
 // R45: warriors become deputy, deputies become leader, when they have done enough
@@ -2181,6 +2241,7 @@ function promote(newRole) {
     say(`You are now deputy of ${clanName}! ${trainee ? trainee.name + " is your apprentice. " : ""}` +
         `To become leader: catch ${LEADER_NEEDS.hunts} prey, win ${LEADER_NEEDS.fights} fights, train your apprentice ` +
         `and complete a mission. First lesson: take it hunting. ${missionText}`, 8);
+    requestSave();   // R84
     return;
   }
   // Leader (R37: nine lives; R9: three clanmates to give orders to)
@@ -2206,6 +2267,7 @@ function promote(newRole) {
   giveOrder("follow");
   say(`StarClan gives you nine lives. You are now ${fullName()}, leader of ${clanName}! ` +
       `Press 1 Follow, 2 Hunt, 3 Guard.`, 6);
+  requestSave();   // R84
 }
 
 // ======================================================
@@ -2459,7 +2521,10 @@ function updateCampCats(dt) {
 
   for (const c of campCats) {
     if (c.injured) {
-      c.moving = false;   // lies still until healed
+      // R52, R80: lies still for a while (a medicine-cat player can treat it there), then limps into the medicine den
+      const bed = denBed(clanName);
+      if (c.injuredTime >= TREAT_AFTER && distance(c, bed) > 0.6) moveToward(c, bed, 1.5, dt);
+      else c.moving = false;
       continue;
     }
     if (c.helping) continue;   // out fighting rogues with you (R75)
@@ -2599,6 +2664,7 @@ function wakeUp() {
   dayTime = START_TIME * DAY_LENGTH;
   player.hp = 100;
   say(`You wake up refreshed in the ${player.sleepDen.name} at ${clockText()}.`, 3);
+  requestSave();   // R84
 }
 
 function useFreshKill() {
@@ -3013,6 +3079,8 @@ function updateRaider(r, dt) {
   if (distance(r, FRESH_KILL) < 1.5) {
     takeFromPile(1);
     say(`The ${r.clan} raiders grab fresh-kill and run!`, 2.5);
+    changeLand(r.clan, -3);   // R78: their raid succeeded
+    raiders.forEach((o) => { o.stole = true; });
     r.state = "fleeing";
     r.fleeTimer = 6;
     raiders.forEach((o) => { if (o.state === "raid") { o.state = "fleeing"; o.fleeTimer = 6; } });
@@ -3025,7 +3093,8 @@ function updateRaider(r, dt) {
 function buildMedicineCats() {
   return Object.keys(CLANS).map((clan) => {
     const den = huts.find((h) => h.clan === clan && h.id === "medicine");
-    const spot = { x: den.x + Math.sin(den.door) * (den.R + 1), z: den.z + Math.cos(den.door) * (den.R + 1) };
+    // R80: inside the den, at the back away from the doorway
+    const spot = { x: den.x - Math.sin(den.door) * 1.2, z: den.z - Math.cos(den.door) * 1.2 };
     return Object.assign({ clan, name: clan === clanName ? MEDICINE_NAMES.own : MEDICINE_NAMES[clan], home: spot,
                            heading: den.door, walk: 0, moving: false, patient: null, healCooldown: 0,
                            look: { fur: "#a89878", eyes: EYES.Green, pattern: "Patches" } }, spot);
@@ -3044,34 +3113,21 @@ function updateMedicineCats(dt) {
   for (const c of campCats) if (c.injured) c.injuredTime = (c.injuredTime || 0) + dt;
   for (const m of medicineCats) {
     m.healCooldown = Math.max(0, m.healCooldown - dt);
+    // R80: medicine cats stay in their dens; the hurt come to them
     if (m.clan === clanName && !isMedicine()) {
-      // R52: treat a camp cat that has been hurt for a while
-      if (!m.patient) m.patient = campCats.find((c) => c.injured && c.injuredTime >= TREAT_AFTER) || null;
-      if (m.patient) {
-        if (!m.patient.injured) { m.patient = null; continue; }
-        moveToward(m, m.patient, 3, dt);
-        if (distance(m, m.patient) < 1.5) {
-          if (herbStore > 0) herbStore--;
-          Object.assign(m.patient, { injured: false, hp: 100, injuredTime: 0 });
-          m.patient = null;
-        }
-        continue;
+      // R52: treat a hurt camp cat that has come into the den
+      const patient = campCats.find((c) => c.injured && c.injuredTime >= TREAT_AFTER && distance(c, m) < 1.8);
+      if (patient) {
+        if (herbStore > 0) herbStore--;
+        Object.assign(patient, { injured: false, hp: 100, injuredTime: 0 });
       }
     }
-    // R69b: a rival clan's medicine cat treats its own beaten cats
     if (m.clan !== clanName) {
-      if (m.patient && m.patient.state !== "resting") m.patient = null;
-      if (!m.patient) m.patient = patrols.find((p) => p.clan === m.clan && p.state === "resting" && p.restTime >= 3) || null;
-      if (m.patient) {
-        moveToward(m, m.patient, 3, dt);
-        if (distance(m, m.patient) < 1.5) {
-          m.patient.respawn = 0;
-          m.patient = null;
-        }
-        continue;
-      }
+      // R69b: a rival clan's beaten cat resting in the den
+      const patient = patrols.find((p) => p.clan === m.clan && p.state === "resting" && p.restTime >= 3 && distance(p, m) < 1.8);
+      if (patient) patient.respawn = 0;
     }
-    // Otherwise stay by the medicine den
+    // Stay at the back of the medicine den
     if (distance(m, m.home) > 0.3) moveToward(m, m.home, 2, dt);
     else m.moving = false;
   }
@@ -3380,10 +3436,16 @@ function playerHits(e, amount) {
 
 // R62: after the apprenticeship, rogues come as packs of 2-3 that roam the territory
 function spawnRoguePack(spot) {
-  Object.assign(rogue, { x: spot.x, z: spot.z, hp: ROGUE_PACK_HP, windup: 0, cooldown: 0, stagger: 0, state: "roaming",
-                         smart: true, damage: ROGUE_PACK_DAMAGE, raidClock: 0, raiding: false, target: null, timer: 0 });
-  const size = 1 + Math.floor(Math.random() * 2);   // 1-2 more
+  // R83: a warrior or medicine cat faces one rogue; deputies and leaders face packs
+  const pack = role === "Deputy" || role === "Leader";
+  Object.assign(rogue, { x: spot.x, z: spot.z, hp: pack ? ROGUE_PACK_HP : ROGUE_SOLO_HP, windup: 0, cooldown: 0, stagger: 0, state: "roaming",
+                         smart: true, pack, damage: ROGUE_PACK_DAMAGE, raidClock: 0, raiding: false, target: null, timer: 0 });
   rogueMates = [];
+  if (!pack) {
+    say("A rogue has been seen on your territory! It is roaming - and dangerous.", 3);
+    return;
+  }
+  const size = 1 + Math.floor(Math.random() * 2);   // 1-2 more
   for (let i = 0; i < size; i++) {
     rogueMates.push({ x: spot.x + (i ? -1.5 : 1.5), z: spot.z - 1, hp: ROGUE_MATE_HP, heading: 0, walk: 0, windup: 0, cooldown: 1 + i,
                       hurtTimer: 0, stagger: 0, fleeTimer: 0, state: "roaming", smart: true, damage: 14, isMate: true,
@@ -3395,6 +3457,13 @@ function spawnRoguePack(spot) {
 // Where a roaming pack goes next: somewhere in your territory, or your camp when it is time to raid
 function rogueRoamTarget() {
   if (rogue.raiding) return FRESH_KILL;
+  // R79: not raiding, so get out of the camp (and never pick a spot inside it)
+  if (distance(rogue, CAMP) < CAMP_SAFE) {
+    const away = Math.atan2(rogue.x - CAMP.x, rogue.z - CAMP.z);
+    rogue.target = null;
+    return { x: CAMP.x + Math.sin(away) * (CAMP_SAFE + 3), z: CAMP.z + Math.cos(away) * (CAMP_SAFE + 3) };
+  }
+  if (rogue.target && distance(rogue.target, CAMP) < CAMP_SAFE) rogue.target = null;
   if (!rogue.target || distance(rogue, rogue.target) < 2) rogue.target = spotFor(clanName, -40 + Math.random() * 90, -40 + Math.random() * 90);
   return rogue.target;
 }
@@ -3422,11 +3491,11 @@ function updateRoguePack(dt) {
   rogueMates = rogueMates.filter((m) => m.state !== "gone");
   if (r.state !== "roaming") return;
   // Roaming: look for you, and raid the camp if nobody chases the pack off
-  if (distance(player, r) < ROGUE_SIGHT && !outOfReach(r)) {
+  if (distance(player, r) < ROGUE_SIGHT && !outOfReach(r) && !inAnyCamp(player)) {   // R79: never in a camp
     r.state = "fighting";
     rogueMates.forEach((m) => { m.state = "fighting"; });
     playSound("hiss");
-    say("The rogue pack attacks!", 2);
+    say(r.pack ? "The rogue pack attacks!" : "The rogue attacks!", 2);
     return;
   }
   r.raidClock += dt;
@@ -3434,21 +3503,98 @@ function updateRoguePack(dt) {
     r.raiding = true;
     say("The rogue pack is heading for your camp!", 3);
   }
-  moveToward(r, rogueRoamTarget(), r.raiding ? 5 : 2.5, dt);
+  const leaving = !r.raiding && distance(r, CAMP) < CAMP_SAFE;
+  moveToward(r, rogueRoamTarget(), r.raiding || leaving ? 5 : 2.5, dt);
   if (r.raiding && distance(r, FRESH_KILL) < 2) {
-    // Steal and hurt, then go back to roaming
+    // R79: steal and run - too many clan cats in camp to fight anyone there
     takeFromPile(1);
-    hurtCampCats(1);
     r.raiding = false;
     r.raidClock = 0;
     r.target = null;
-    say("Rogues raided your camp! They stole fresh-kill and hurt a clanmate.", 3.5);
+    say("Rogues slipped into your camp and stole fresh-kill!", 3.5);
   }
 }
 
 // ======================================================
 // Round 7
 // ======================================================
+// ======================================================
+// Round 8: saving progress (R84). game.js only turns the game into plain data and back;
+// script.js keeps the save slots in the browser.
+// ======================================================
+let loadingSave = false;
+
+// Ask the page to save now (after waking up, ranking up or choosing a path)
+function requestSave() {
+  if (hooks.saveNow && !loadingSave) hooks.saveNow();
+}
+
+function saveData() {
+  const copy = (o) => JSON.parse(JSON.stringify(o));
+  return {
+    version: 1, title: `${fullName()} of ${clanName}`, rank: rankName(),
+    catName, look: copy(look), clanName, stage, role, mentor, taskIndex, markersVisited, warriorSuffix, missionIndex,
+    kitCatches: copy(kitCatches), stats: copy(stats), medRank, herbStore, medQuest: copy(medQuest), questDeposited: copy(questDeposited),
+    player: { hp: player.hp, food: player.food, lives: player.lives, pouch: copy(player.pouch) },
+    rivalry: copy(rivalry), borders: copy(borders), landScore: copy(landScore),
+    day, dayTime, pileItems: copy(pileItems),
+    trainee: trainee ? { lesson: trainee.lesson, lessonCount: trainee.lessonCount } : null,
+  };
+}
+
+function loadData(d) {
+  loadingSave = true;
+  clanName = d.clanName;
+  catName = d.catName;
+  Object.assign(look, d.look);
+  resetGame();
+  stage = d.stage;
+  mentor = d.mentor;
+  taskIndex = d.taskIndex;
+  warriorSuffix = d.warriorSuffix;
+  Object.assign(kitCatches, d.kitCatches);
+  // A deputy or leader is set up the way a promotion does it (apprentice, nine lives, clanmates...)
+  if (d.role === "Deputy" || d.role === "Leader") {
+    role = "Warrior";
+    promote("Deputy");
+    if (d.role === "Leader") promote("Leader");
+  } else {
+    role = d.role;
+  }
+  Object.assign(stats, d.stats);
+  markersVisited = d.markersVisited;
+  missionIndex = d.missionIndex;
+  medRank = d.medRank;
+  herbStore = d.herbStore;
+  medQuest = d.medQuest;
+  Object.assign(questDeposited, d.questDeposited);
+  Object.assign(player, { hp: d.player.hp, food: d.player.food, lives: d.player.lives, pouch: d.player.pouch });
+  Object.assign(rivalry, d.rivalry);
+  borders = d.borders;
+  landScore = d.landScore;
+  day = d.day;
+  dayTime = d.dayTime;
+  pileItems = d.pileItems;
+  freshKill = pileItems.length;
+  pileDay = day;
+  if (d.trainee && trainee) Object.assign(trainee, d.trainee);
+  choosingMentor = stage === 1 && mentor === null;
+  choosingRole = stage === 2 && role === null;
+  loadingSave = false;
+  say(`Welcome back, ${fullName()} of ${clanName}!`, 3);
+}
+
+// R80: where a hurt cat lies in its clan's medicine den (the middle of the den, in front of the medicine cat)
+function denBed(clan) {
+  const den = huts.find((h) => h.clan === clan && h.id === "medicine");
+  return { x: den.x, z: den.z };
+}
+
+// R79: rogues don't fight in a camp (too many clan cats there)
+function inAnyCamp(p) {
+  return Object.keys(CLANS).some((c) => distance(p, campOf(c)) < CAMP_SAFE);
+}
+
 // R70: the cats that get a nametag
 function importantCats() {
   const list = [];
@@ -3494,7 +3640,7 @@ function updateBranch(dt) {
 // R75: call a patrol of your clan's warriors to fight a rogue pack with you
 
 function packAttacking() {
-  return rogue.smart && rogue.state === "fighting";
+  return rogue.pack && rogue.state === "fighting";   // R83: a single rogue isn't a pack
 }
 
 function callPatrol() {
