@@ -3,7 +3,8 @@
 Guidance for Claude Code when working in this repository.
 
 ## Project
-A game that allows for players to become a cat in a mystical game based on Warriors book
+A game that allows for players to become a cat in a mystical game based on Warriors book.
+The game is called **Cat Clans**. The name is `GAME_NAME` in `game.js`; the page and README use it too.
 
 - `problem.md`: the problem and initial requirements.
 - `SPEC.md`: the specification, written and edited by the owner. Build from it. If the code needs to differ from it, ask the owner first.
@@ -26,6 +27,8 @@ A game that allows for players to become a cat in a mystical game based on Warri
   server). Load libraries as plain `<script>` tags from a CDN, not as ES modules.
 - `game.js` holds only game rules: no DOM and no Three.js. `render3d.js` only reads the game state.
   `game.js` talks to the page only through `hooks`.
+- Computer-controlled cats move only with `moveToward()` in `game.js`, which walks them around trees,
+  rocks and huts. Changing their `x`/`z` directly lets them walk through walls or get stuck.
 - Never undo or amend a commit. Commit in small steps with messages that say what changed and why.
 - Record technical decisions that had real alternatives in `docs/decisions/` as Y-statements, numbered
   `0001`, `0002`, ... (next free number). Owner decisions also go in `decision.md`.
@@ -44,6 +47,8 @@ Test after a change.
 - Call `step(0.5)` before a check that must start from walking: a W tap less than 0.3 s after the
   last one starts a run.
 - All checks, including earlier rounds', must pass before the work is done.
+- Run the full suite at least twice before finishing. Cats and prey move randomly, so a check can pass
+  once and still be flaky.
 - There is no Node.js. Run the tests in headless Edge from Git Bash (absolute paths and a separate
   profile folder are required, or Edge prints nothing):
 
