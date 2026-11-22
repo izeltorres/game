@@ -88,3 +88,17 @@ R66-allow for camp cats to eat from fresh kill
 R67-make the markers more obvious
 R68-make the natural movements of the tree less and have falling leaves
 R69-add changing seasons
+
+## Round 7
+R70-make all the important cats have small nametags
+R71-when sleeping allow cat to curl up
+R72-dont make there be the poles on the markers, just the highlights (chnages R67)
+R73-make there be branches on the trees to chill on
+R74-allow for a winding river
+R75-when rogue packs attack you can call to your pack to help you
+R76-make it rain less, make more during raniy season
+R77-make it harder to get rid of rogue cats but do not make them as oftern(change to R62)
+R78-allow for change of territories
+R79-dont allow rogues on base camp
+
+
