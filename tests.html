@@ -567,6 +567,7 @@
         check("R45", "counts start again at zero for the next promotion", () => stats.hunts === 0 && stats.fights === 0 && stats.patrols === 0);
 
         // ---------- R36, R39: training an apprentice ----------
+        rogue.state = "gone"; rogue.respawn = 999; rogueMates = [];   // (a roaming rogue, R62/R83, could knock you out mid-lesson and send you back to camp)
         check("R39", "a new deputy gets one of the camp kits as its apprentice (-paw)", () =>
           trainee && kits.includes(trainee) && trainee.clan === clanName && trainee.name.endsWith("paw"));
         check("R39", "your apprentice follows you", () => {
@@ -2796,7 +2797,7 @@
           place(-20, 40); updateHud();
           const hud = /home/i.test(doc.getElementById("territory").textContent);
           press("KeyM");
-          const ok = colorClose(mapPixel(-20, 40), CLANS.WindClan.color);
+          const ok = colorClose(mapPixel(-25, 60), CLANS.WindClan.color);   // (not where you stand: the map draws you there)
           press("KeyM");
           return hud && ok;
         });
