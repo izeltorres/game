@@ -1811,11 +1811,8 @@ function defeatEnemy(e) {
     return;
   }
   if (e.clan && rivalry[e.clan] !== undefined) changeRivalry(e.clan, 5);   // R54
-  if (e.clan && e.mode !== "raid") changeLand(e.clan, 1);                // R78: a fight won (a raid counts as a whole, below)
   e.state = "fleeing";
   e.fleeTimer = 3;
-  // R78: the last raider driven off before they stole anything wins you land
-  if (e.mode === "raid" && raiders.every((r) => r.state === "fleeing" || r.state === "gone") && !raiders.some((r) => r.stole)) changeLand(e.clan, 3);
   if (stage === 2 && role) {
     stats.fights++;
     say(`The ${e.clan} cat runs home! (fights won: ${stats.fights})`, 2.5);
@@ -1823,6 +1820,10 @@ function defeatEnemy(e) {
   } else {
     say(`The ${e.clan} cat runs home!`, 2);
   }
+  // R78 (after the messages above, so news of land won or lost is what you see): a fight won counts 1;
+  // a raid counts 3 as a whole, when the last raider is driven off before they stole anything
+  if (e.clan && e.mode !== "raid") changeLand(e.clan, 1);
+  if (e.mode === "raid" && raiders.every((r) => r.state === "fleeing" || r.state === "gone") && !raiders.some((r) => r.stole)) changeLand(e.clan, 3);
 }
 
 // Swipe (E): quick and weak, anyone can do it

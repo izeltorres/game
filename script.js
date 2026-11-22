@@ -310,18 +310,15 @@ function drawMap() {
   mapDrawnAt = time;
   const c = $("map-canvas").getContext("2d");
   const half = MAP_SIZE / 2;
-  // Territories in their clan colours
-  for (const [name, clan] of Object.entries(CLANS)) {
-    c.fillStyle = clan.color;
-    c.fillRect(clan.sx < 0 ? 0 : half, clan.sz < 0 ? half : 0, half, half);
+  // Territories in their clan colours, wherever the borders are now (R78): painted in small squares
+  const cell = 4;
+  const toWorld = (px) => (px / MAP_SIZE) * WORLD_HALF * 2 - WORLD_HALF;
+  for (let px = 0; px < MAP_SIZE; px += cell) {
+    for (let py = 0; py < MAP_SIZE; py += cell) {
+      c.fillStyle = CLANS[territoryAt(toWorld(px + cell / 2), -toWorld(py + cell / 2))].color;
+      c.fillRect(px, py, cell, cell);
+    }
   }
-  // Borders
-  c.strokeStyle = "rgba(0, 0, 0, 0.6)";
-  c.lineWidth = 2;
-  c.beginPath();
-  c.moveTo(half, 0); c.lineTo(half, MAP_SIZE);
-  c.moveTo(0, half); c.lineTo(MAP_SIZE, half);
-  c.stroke();
   // River and stream
   c.fillStyle = "#2f6fb0";
   // (drawn as a shape along z, so the river's bends show, R74)

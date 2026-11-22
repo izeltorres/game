@@ -534,7 +534,8 @@
         });
         check("R9", "winning fights after choosing a role is counted", () => {
           const before = stats.fights;
-          place(rogue.x, rogue.z - 10); step(0.1);
+          // (the rogue roams: meet it well away from any camp, where rogues won't fight, R79)
+          Object.assign(rogue, at(0, -40)); place(rogue.x, rogue.z + 10); step(0.1);
           let swipes = 0;
           while (rogue.state === "fighting" && swipes < 40) {
             Object.assign(rogue, { x: player.x, z: player.z + 1.2 });
@@ -569,7 +570,7 @@
         check("R39", "a new deputy gets one of the camp kits as its apprentice (-paw)", () =>
           trainee && kits.includes(trainee) && trainee.clan === clanName && trainee.name.endsWith("paw"));
         check("R39", "your apprentice follows you", () => {
-          quiet();   // (in its hunting lesson it would chase any prey within 15 units instead)
+          quiet(); squirrel.respawn = 999;   // (in its hunting lesson it would chase any prey within 15 units instead)
           placeAt(-15, -25); step(8);
           return dist2d(trainee, player) < 5;
         });
@@ -2034,6 +2035,7 @@
         check("R52", "Thymeleaf treats a hurt camp cat after it has been hurt for 30 seconds", () => {
           const hurt = campCats[1];
           Object.assign(hurt, { injured: true, injuredTime: 0, hp: 40 });
+          placeAt(-30, -30);   // (out of the den: you would be standing where hurt cats lie, and cats are solid)
           step(10);
           const stillHurt = hurt.injured;
           // Thymeleaf may first have to treat another cat or walk round a hut, so allow up to a minute in all
