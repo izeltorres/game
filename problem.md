@@ -75,6 +75,16 @@ R55-make the playscreen bigger
 R56-make it easier for the kits to hunt
 R57-medicine path can have more tasks; such as collecting
 
-
-
 ## Round 6
+R58-make the mentor cat be a physical cat
+R59-Make the river more realistic
+R60-add more textures
+R61-add background music and ambiant noises, also add noises for cats and such
+R62-pose rougue cats as a greater danger
+R63-make there be more cat to cat interaction
+R64-make tree climbing more important
+R65-make the fresh kill pile more realistic
+R66-allow for camp cats to eat from fresh kill
+R67-make the markers more obvious
+R68-make the natural movements of the tree less and have falling leaves
+R69-add changing seasons
