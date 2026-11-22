@@ -14,6 +14,8 @@ The game is called **Cat Clans**. The name is `GAME_NAME` in `game.js`; the page
 - `game.js`: the game rules only (no page or drawing code), so tests can run them.
 - `render3d.js`: draws the game in 3D with Three.js (loaded from a CDN).
 - `script.js`: keyboard, menu, HUD and the main loop.
+- `sound.js`: music, background sounds and cat noises, all made with Web Audio (no sound files).
+  `game.js` asks for sounds only through `hooks.sound(name)`.
 - `tests.html`: automatic tests; open it in a browser. Each check names its requirement ID.
 - `docs/decisions/`: numbered decision records (Y-statements) for technical choices.
 - `README.md`: overview and how to run it. Keep it up to date.
@@ -29,6 +31,8 @@ The game is called **Cat Clans**. The name is `GAME_NAME` in `game.js`; the page
   `game.js` talks to the page only through `hooks`.
 - Computer-controlled cats move only with `moveToward()` in `game.js`, which walks them around trees,
   rocks and huts. Changing their `x`/`z` directly lets them walk through walls or get stuck.
+- No image or sound files: textures are drawn on a canvas and sounds are made with Web Audio, because
+  browsers block image files for WebGL when the page is opened from `file://`.
 - Never undo or amend a commit. Commit in small steps with messages that say what changed and why.
 - Record technical decisions that had real alternatives in `docs/decisions/` as Y-statements, numbered
   `0001`, `0002`, ... (next free number). Owner decisions also go in `decision.md`.
@@ -65,5 +69,8 @@ Test after a change.
   ```
 
   It prints the summary line (`ALL N TESTS PASSED`, or how many failed) and each failing check.
-  A full run takes about 10 minutes, longer than a foreground command may run, so run it in the background
-  and wait for it to finish.
+  A full run takes about 12–15 minutes, longer than a foreground command may run, so run it in the background
+  and wait for it to finish. Two runs can go at the same time if each uses its own `--user-data-dir` folder.
+- Things happen on their own during long checks (rogue packs roam and attack, camp cats eat from the pile
+  and pair up, kits walk up to you), and cats are solid. A check must set up the state it needs rather than
+  rely on what earlier checks left behind.
