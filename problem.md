@@ -63,5 +63,18 @@ R45- to level up specifically; kit gets bugs and smaller animals until they reac
 R46-add more animations
 
 ## Round 5
+R47- allow prey of different sizes, when you are a leader you can order to hunt a bigger prey for the clan
+R48- when you are leader you meet up with other clans
+R49-as a deputy you are sent on missions outside your territory
+R50-as a leader you must make big discions for your entire clan
+R51- prey can't swim
+R52- make sure that there is always a medicine cat
+R53-use clicker to find and get herbs
+R54- make there be rivarlys between clans
+R55-make the playscreen bigger
+R56-make it easier for the kits to hunt
+R57-medicine path can have more tasks; such as collecting
+
+
 
 ## Round 6
