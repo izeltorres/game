@@ -292,7 +292,8 @@
         check("R42", "squirrels stay out of the kit's way", () => { step(1); return squirrel.state === "hidden"; });
         check("R45", "a kit needs 5 beetles and 3 mice", () => KIT_NEEDS.beetle === 5 && KIT_NEEDS.mouse === 3 &&
           kitCatches.beetle === 0 && kitCatches.mouse === 0);
-        const kitSpot = () => { placeAt(0, -2); player.heading = 0; };
+        // (camp cats and kits are solid, R58: move any standing on the spot out of the way)
+        const kitSpot = () => { [...campCats, ...kits].forEach((c) => { if (dist2d(c, at(0, -1.5)) < 2.5) c.x += 5; }); placeAt(0, -2); player.heading = 0; };
         check("R45", "each beetle a kit catches counts, and the kit grows", () => {
           prey.length = 0; kitSpot(); step(0.5);
           const size = catSize();
@@ -1495,7 +1496,7 @@
         check("R25", "press E anywhere inside your den to rest", () => {
           const h = warriorsHut();
           place(h.x + Math.sin(h.door + 1.5) * 1.5, h.z + Math.cos(h.door + 1.5) * 1.5);
-          player.hp = 30; dayTime = 0.6 * DAY_LENGTH; pressE();
+          player.hp = 30; dayTime = 0.6 * DAY_LENGTH; pressE(); step(SLEEP_TIME + 0.1);   // (curled up for a moment first, R71)
           return player.hp === 100 && clockText() === "07:12";
         });
         check("R25", "huts are drawn with a doorway and a mossy nest inside", () => {
@@ -1812,6 +1813,7 @@
         const theHare = () => prey.find((p) => p.kind === "hare");
         check("R47", "order 4 starts a big hunt: a hare appears", () => {
           freshWithRole("Leader", "WindClan"); quiet(); placeAt(0, -30);
+          rogue.state = "gone"; rogue.respawn = 999; rogueMates = [];   // (no rogue pack to interrupt the hunt, R62)
           press("Digit4");
           return order === "bighunt" && theHare() && territoryAt(theHare().x, theHare().z) === clanName;
         });
@@ -2317,8 +2319,10 @@
           return player.hp === 50;
         });
         check("R63", "kits come up to you in camp", () => {
-          placeAt(0, -2); step(10);
-          return kits.filter((k) => k.clan === clanName).some((k) => dist2d(k, player) < 3);
+          placeAt(0, -2);
+          let came = false;   // (a visit lasts a few seconds, so watch the whole time)
+          for (let i = 0; i < 40 && !came; i++) { step(0.25); came = kits.filter((k) => k.clan === clanName).some((k) => dist2d(k, player) < 3); }
+          return came;
         });
         check("R63", "press E next to a kit to play a pounce game", () => {
           campCats.forEach((c) => { if (dist2d(c, player) < 3) c.x += 6; });   // (so the kit is the cat in front of you)
@@ -2620,12 +2624,12 @@
             Math.abs(riverAt(13).x1 - riverAt(13).x0 - 6) < 0.01 && stream.x0 === STREAM_X0 && stream.x1 === STREAM_X1;
         });
         check("R74", "the water follows the bends: wet and deep where the river is, dry where it was", () =>
-          inRiver(38, 20) && waterDepthAt(38, 20) === "deep" && !inRiver(31, 20) && waterDepthAt(31, 20) === null && inRiver(31, -20));
+          inRiver(38, -60) && waterDepthAt(38, -60) === "deep" && !inRiver(31, -60) && waterDepthAt(31, -60) === null && inRiver(29, 60));   // (at the tops of bends, away from the stepping stones)
         check("R74", "swimming follows the bend", () => {
           freshApprentice(null, "WindClan"); quiet();
-          place(38, 20); step(0.2);
+          place(38, -60); step(0.2);
           const there = swimming(player);
-          place(31, 20); step(0.2);
+          place(31, -60); step(0.2);
           return there && !swimming(player);
         });
         check("R74", "the map, grass and drawn water follow the bend", () => {
@@ -2644,34 +2648,35 @@
           press("KeyV");
           return helpers.length === 0 && /no rogue/i.test(lastMessage);
         });
+        let fightsAtCall = 0;
         check("R75", "V while a rogue pack attacks: 3 of your clan's warriors come out of camp", () => {
           placeAt(-20, -25);
           rogue.respawn = 0; step(0.1);
           Object.assign(rogue, { x: player.x, z: player.z + 4 }); step(0.3);
           campCats.forEach((c) => { c.injured = false; });
+          fightsAtCall = stats.fights;
           press("KeyV");
           // (the camp's warriors: not the nursing queen, who stays with the kits)
           return rogue.state === "fighting" && helpers.length === 3 && helpers.every((h) => campCats.includes(h) && !h.injured && h.name !== QUEEN.name) &&
             CALL_COOLDOWN === 60;
-        });
-        check("R75", "the patrol runs to you and fights the rogues", () => {
-          const hp = rogue.hp + rogueMates.reduce((n, r) => n + r.hp, 0);
-          let near = false;
-          for (let i = 0; i < 20; i++) { player.hp = 100; step(1); if (helpers.some((h) => dist2d(h, player) < 4)) near = true; }
-          const after = rogue.state === "fighting" ? rogue.hp + rogueMates.reduce((n, r) => n + r.hp, 0) : 0;
-          return near && after < hp;
         });
         check("R75", "you can't call again straight away", () => {
           const n = helpers.length;
           press("KeyV");
           return helpers.length === n && /wait|soon/i.test(lastMessage);
         });
+        check("R75", "the patrol runs to you and fights the rogues", () => {
+          const hp = rogue.hp + rogueMates.reduce((n, r) => n + r.hp, 0);
+          let near = false;
+          for (let i = 0; i < 20 && rogue.state === "fighting"; i++) { player.hp = 100; step(1); if (helpers.some((h) => dist2d(h, player) < 4)) near = true; }
+          const after = rogue.state === "fighting" ? rogue.hp + rogueMates.reduce((n, r) => n + r.hp, 0) : 0;
+          return near && after < hp;
+        });
         check("R75", "when the pack flees the patrol goes back to camp, and the win counts for you", () => {
-          const fights = stats.fights;
           for (let i = 0; i < 60 && rogue.state === "fighting"; i++) { player.hp = 100; step(1); }
           const fled = rogue.state === "fleeing" || rogue.state === "gone";
           for (let i = 0; i < 30 && helpers.length; i++) step(1);
-          return fled && stats.fights === fights + 1 && helpers.length === 0 && campCats.every((c) => !c.helping);
+          return fled && stats.fights === fightsAtCall + 1 && helpers.length === 0 && campCats.every((c) => !c.helping);
         });
 
         // ---------- R76 rain ----------
