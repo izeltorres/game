@@ -156,6 +156,7 @@ function updateHud() {
   // R37: after a game over the menu can only restart
   setText($("main-menu-title"), ui.gameOver ? "You have lost all nine lives" : "Paused");
   $("main-menu").querySelector("[data-action='resume']").classList.toggle("hidden", ui.gameOver);
+  $("main-menu").querySelector("[data-action='save']").classList.toggle("hidden", ui.gameOver);   // R84
   updatePouch();
   updateMap();
   updateFishingBox();
@@ -378,7 +379,7 @@ function drawMap() {
 }
 
 hooks.message = showMessage;
-hooks.afterUpdate = updateHud;
+hooks.afterUpdate = () => { updateHud(); autosave(); };   // R84: autosave every 30 s of play
 
 // ======================================================
 // Mentor (R19) and role (R9) choices
@@ -480,10 +481,13 @@ function buildMenu() {
 
   nameInput.addEventListener("input", updatePreviewName);
   $("start-btn").addEventListener("click", startGame);
+  renderSaves();   // R84: saved cats to continue
   // R26: the main menu (opened with Esc)
   $("main-menu").querySelector("[data-action='resume']").addEventListener("click", () => { ui.menu = false; updateHud(); document.activeElement.blur(); });
   $("main-menu").querySelector("[data-action='restart']").addEventListener("click", restartFromMenu);
   $("main-menu").querySelector("[data-action='newcat']").addEventListener("click", showMenu);
+  $("main-menu").querySelector("[data-action='save']").addEventListener("click", () => say(saveNow() ? "Game saved." : "Nothing to save yet.", 2));   // R84
+  $("replace-cancel").addEventListener("click", () => $("replace-slot").classList.add("hidden"));
   // R61: volume and mute
   $("volume").addEventListener("input", (e) => setVolume(e.target.value));
   $("mute").addEventListener("change", (e) => setMuted(e.target.checked));
@@ -494,7 +498,114 @@ function updatePreviewName() {
   previewNameEl.textContent = `${cleanName(nameInput.value)}kit of ${clanName}`;
 }
 
+// ======================================================
+// R84: save slots, kept in the browser (localStorage). game.js turns the game into data and back.
+// ======================================================
+const SAVE_KEY = document.getElementById("summary") ? "catclans-test-saves" : "catclans-saves";   // the test page has its own
+const SAVE_SLOTS = 3;
+const AUTOSAVE_EVERY = 30;   // seconds of play
+let currentSlot = null;      // which slot this cat saves into
+let lastAutosave = 0;
+
+function saveSlots() {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(SAVE_KEY)) || []; } catch (e) { list = []; }
+  return Array.from({ length: SAVE_SLOTS }, (_, i) => list[i] || null);
+}
+
+function writeSlots(list) {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(list)); } catch (e) { /* storage full or blocked: nothing to do */ }
+}
+
+// Save the cat into its slot now. Each save gets a higher number than any before it, so the newest is clear.
+function saveNow() {
+  if (currentSlot === null || !playing || ui.gameOver) return false;
+  const list = saveSlots();
+  const newest = Math.max(0, ...list.map((s) => (s ? s.savedAt || 0 : 0)));
+  list[currentSlot] = Object.assign(saveData(), { savedAt: newest + 1 });
+  writeSlots(list);
+  lastAutosave = time;
+  return true;
+}
+
+function autosave() {
+  if (playing && time - lastAutosave >= AUTOSAVE_EVERY) saveNow();
+}
+
+// The saved cats on the start menu, each with Continue and Delete
+function renderSaves() {
+  const box = $("saves");
+  box.innerHTML = "";
+  saveSlots().forEach((s, i) => {
+    if (!s) return;
+    const row = document.createElement("div");
+    row.className = "save-row";
+    const label = document.createElement("span");
+    label.textContent = `${s.title} · ${s.rank} · Day ${s.day}`;
+    const cont = document.createElement("button");
+    cont.textContent = "Continue";
+    cont.dataset.act = "continue";
+    cont.addEventListener("click", () => continueSlot(i));
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.dataset.act = "delete";
+    del.addEventListener("click", () => {
+      const list = saveSlots();
+      list[i] = null;
+      writeSlots(list);
+      if (currentSlot === i) currentSlot = null;
+      renderSaves();
+    });
+    row.append(label, cont, del);
+    box.appendChild(row);
+  });
+}
+
+function continueSlot(i) {
+  const data = saveSlots()[i];
+  if (!data) return;
+  loadData(data);
+  currentSlot = i;
+  buildScene();
+  playing = true;
+  menuEl.classList.add("hidden");
+  hudEl.classList.remove("hidden");
+  $("replace-slot").classList.add("hidden");
+  document.activeElement.blur();
+  lastAutosave = time;
+  updateHud();
+}
+
+// All slots full: ask which saved cat the new one replaces
+function showReplaceChoice() {
+  const box = $("replace-options");
+  box.innerHTML = "";
+  saveSlots().forEach((s, i) => {
+    const b = document.createElement("button");
+    b.textContent = `Replace ${s.title} (${s.rank}, day ${s.day})`;
+    b.addEventListener("click", () => {
+      $("replace-slot").classList.add("hidden");
+      beginNewCat(i);
+    });
+    box.appendChild(b);
+  });
+  $("replace-slot").classList.remove("hidden");
+}
+
+window.addEventListener("beforeunload", () => saveNow());
+hooks.saveNow = saveNow;
+
+// Start: a new cat goes into an empty save slot (R84), or asks which one to replace
 function startGame() {
+  const free = saveSlots().indexOf(null);
+  if (free < 0) {
+    showReplaceChoice();
+    return;
+  }
+  beginNewCat(free);
+}
+
+function beginNewCat(slot) {
   catName = cleanName(nameInput.value);
   resetGame();
   buildScene();   // the world depends on the clan and the cat's look
@@ -503,6 +614,8 @@ function startGame() {
   hudEl.classList.remove("hidden");
   document.activeElement.blur(); // so keys move the cat instead of typing or clicking
   updateHud();
+  currentSlot = slot;
+  saveNow();
   showMessage(`Welcome to ${clanName}, ${fullName()}! W to walk (tap twice to run), A/D to turn, M for the map.`, 4);
 }
 
@@ -513,9 +626,11 @@ function restartFromMenu() {
   updateHud();
   document.activeElement.blur();
   showMessage(`${fullName()} starts again in ${clanName}.`, 3);
+  saveNow();   // R84: the same slot
 }
 
 function showMenu() {
+  saveNow();   // R84: keep the cat you leave
   playing = false;
   fishing.active = false;
   choosingRole = false;
@@ -527,6 +642,7 @@ function showMenu() {
   menuEl.classList.remove("hidden");
   hudEl.classList.add("hidden");
   for (const id of ["message", "role-choice", "mentor-choice", "fishing", "pouch", "map", "main-menu"]) $(id).classList.add("hidden");
+  renderSaves();   // R84
   document.activeElement.blur();
 }
 

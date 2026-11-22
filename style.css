@@ -714,3 +714,35 @@ body {
   width: 160px;
   vertical-align: middle;
 }
+
+/* R84: saved cats on the start menu, and the choice of slot to replace */
+#saves {
+  margin-top: 12px;
+  text-align: left;
+}
+#saves .save-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 14px;
+}
+#saves .save-row span {
+  flex: 1;
+}
+#saves .save-row button,
+#replace-options button {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+#replace-slot {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+}
+#replace-options button {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+}

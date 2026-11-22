@@ -727,7 +727,8 @@ built in Round 8), with the owner's answers to the questions asked at the start 
 
 ### R79. Rogues can't fight in a camp
 - There are too many clan cats in a camp for rogues to fight there:
-  - Rogues never attack you while you are in a camp (within 15 units of its middle). If you run into
+  - The roaming rogues (R62, R83) never attack you while you are in a camp (within 15 units of its
+    middle). (The apprentice's rogue task, R4, waits far away from any camp.) If you run into
     camp during a fight, they back off and wait outside.
   - A rogue raid (R62) still slips into your camp and steals a piece of fresh-kill, then runs off, but
     it **no longer hurts a camp cat** (changes R62).

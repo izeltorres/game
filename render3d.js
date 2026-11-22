@@ -1003,6 +1003,7 @@ function buildScene() {
   branchGeo.rotateX(Math.PI / 2);   // lying along +z, thin end outwards
   branchGeo.translate(0, 0, 0.5);
   const treeTops = [];
+  const treeParts = [];   // R81: each tree's trunk, leaves and branches (same order as `trees`)
   for (const t of trees) {
     const place = biomeAt(t.x, t.z);
     const trunk = new THREE.Mesh(trunkGeo, trunkMats[place]);
@@ -1035,6 +1036,8 @@ function buildScene() {
     top.userData.phase = t.phase;
     scene.add(top);
     treeTops.push(top);
+    const parts = { tree: t, trunk, top, branches: [] };
+    treeParts.push(parts);
     // R73: branches to lie on, sticking out of the trunk
     for (const b of t.branches || []) {
       const branch = new THREE.Mesh(branchGeo, trunkMats[place]);
@@ -1043,6 +1046,7 @@ function buildScene() {
       branch.scale.set(1, 1, b.length + t.r * 0.4);
       scene.add(branch);
       branchModels.push(branch);
+      parts.branches.push(branch);
     }
   }
 
@@ -1065,8 +1069,11 @@ function buildScene() {
 
   // Huts in every camp (R25); your own are your dens
   let denModels = [];
+  const hutModels = [];   // R81
   for (const h of huts) {
     const model = makeHut(h);
+    model.userData.hut = h;
+    hutModels.push(model);
     scene.add(model);
     if (h.clan === clanName) denModels.push(model);
   }
@@ -1304,6 +1311,7 @@ function buildScene() {
     rain, fishModels, ripple, lightningFlash: 0, greatOak, medicineCatModels, stolenModel, raiderModels: [], leaderModels: [],
     preyModels: [], droppedModels: [], clanmateModels: [], scentDots, maxDots, builtFor: clanName, builtLook: JSON.stringify(look),
     branchModels, nametags: [],
+    treeParts, hutModels,
     riverMesh,
     groundMaterials, barkMaterial: Object.values(trunkMats)[0], rockMaterial: stoneMat, hutMaterial: hutMaterial(false), waterMaterial: waterMat,
     banks, pebbles, lilyPads, stoneModels, jumpingFish, splash, pileStack, pileModels: [], markerModels, leaves, snow, spotMarkers,
@@ -1827,6 +1835,81 @@ function updateRound7View() {
   });
 }
 
+// ======================================================
+// Round 8
+// ======================================================
+// R81: things between the camera and your cat turn see-through while they are in the way
+const FADE_OPACITY = 0.3;
+
+function setFaded(obj, on) {
+  if (!!obj.userData.faded === on) return;
+  obj.userData.faded = on;
+  obj.traverse((m) => {
+    if (!m.isMesh) return;
+    if (on) {
+      if (!m.userData.baseMat) m.userData.baseMat = m.material;
+      if (!m.userData.fadeMat) {
+        const f = m.userData.baseMat.clone();   // its own copy, so other trees and cats sharing the material stay solid
+        f.transparent = true;
+        f.opacity = FADE_OPACITY * m.userData.baseMat.opacity;
+        f.depthWrite = false;
+        m.userData.fadeMat = f;
+      }
+      m.material = m.userData.fadeMat;
+    } else if (m.userData.baseMat) {
+      m.material = m.userData.baseMat;
+    }
+  });
+}
+
+// How far (x, z) is from the line from the camera to the cat, seen from above, and where along it
+function nearSightLine(cam, target, x, z) {
+  const dx = target.x - cam.x;
+  const dz = target.z - cam.z;
+  const len2 = dx * dx + dz * dz || 0.0001;
+  const t = ((x - cam.x) * dx + (z - cam.z) * dz) / len2;
+  const c = clamp(t, 0, 1);
+  return { t, dist: Math.hypot(x - (cam.x + dx * c), z - (cam.z + dz * c)) };
+}
+
+function updateFading(cam) {
+  const fade = new Set();
+  if (playing) {
+    const target = { x: player.x, y: player.y + 0.5, z: player.z };
+    const between = (x, z, r) => { const s = nearSightLine(cam, target, x, z); return s.t > 0.02 && s.t < 0.97 && s.dist < r; };
+    // Trees: the trunk, or the leaves if the sight line is up at their height
+    for (const parts of view.treeParts) {
+      const t = parts.tree;
+      if (Math.abs(t.x - player.x) > 25 || Math.abs(t.z - player.z) > 25) continue;
+      const s = nearSightLine(cam, target, t.x, t.z);
+      if (s.t <= 0.02 || s.t >= 0.97) continue;
+      const lineY = cam.y + (target.y - cam.y) * s.t;
+      const canopy = (2.2 + t.r * 2) * (t.kind === "willow" ? 1.15 : 1);
+      if (s.dist < t.r + 0.25 || (s.dist < canopy && lineY > parts.top.position.y - canopy * 0.8)) {
+        fade.add(parts.trunk);
+        fade.add(parts.top);
+        parts.branches.forEach((b) => fade.add(b));
+      }
+    }
+    // Other cats
+    const cats = [...view.campCatModels, ...view.kitModels, ...view.patrolModels, ...view.medicineCatModels, ...view.leaderModels,
+                  ...view.clanmateModels, ...view.raiderModels, ...view.rogueMateModels, view.rogueModel];
+    for (const m of cats) {
+      if (m && m.visible && between(m.position.x, m.position.z, 0.6)) fade.add(m);
+    }
+    // Hut walls (not the hut you are in)
+    const inHut = insideHut(player);
+    for (const m of view.hutModels) {
+      const h = m.userData.hut;
+      if (h === inHut || Math.abs(h.x - player.x) > 20 || Math.abs(h.z - player.z) > 20) continue;
+      if (nearSightLine(cam, target, h.x, h.z).dist < h.R) fade.add(m);
+    }
+  }
+  for (const obj of view.faded || []) if (!fade.has(obj)) setFaded(obj, false);
+  for (const obj of fade) setFaded(obj, true);
+  view.faded = fade;
+}
+
 // R21: on the title screen the camera slowly circles the camp
 function titleCamera(t) {
   const a = t * 0.1;
@@ -1854,6 +1937,7 @@ function renderFrame() {
   updateRound5View(t);
   updateRound6View(t, cam);
   updateRound7View();
+  updateFading(cam);   // R81
 
   // R11/R12/R25: the camera sits low and close behind the cat (inside a hut when you are)
   view.camera.position.set(cam.x, cam.y, cam.z);
