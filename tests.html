@@ -620,6 +620,7 @@
         });
 
         // ---------- R37 nine lives ----------
+        rogue.state = "gone"; rogue.respawn = 999; rogueMates = []; player.lives = LEADER_LIVES;   // (a roaming rogue pack, R62, may have found the leader during the checks above)
         check("R37", "a leader has 9 lives, shown in the HUD", () => {
           updateHud();
           const el = doc.getElementById("lives");
@@ -2312,6 +2313,7 @@
           return kits.filter((k) => k.clan === clanName).some((k) => dist2d(k, player) < 3);
         });
         check("R63", "press E next to a kit to play a pounce game", () => {
+          campCats.forEach((c) => { if (dist2d(c, player) < 3) c.x += 6; });   // (so the kit is the cat in front of you)
           const k = kits.filter((x) => x.clan === clanName).sort((a, b) => dist2d(a, player) - dist2d(b, player))[0];
           Object.assign(k, { x: player.x, z: player.z + 1.2 });
           player.heading = 0; pressE();
