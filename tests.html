@@ -1118,6 +1118,7 @@
         // ================= R17 combat moves =================
         check("R17", "a kit can swipe and dodge, but not pounce-attack or bite", () => {
           clanName = "ThunderClan"; resetGame(); playing = true; quiet();
+          [...campCats, ...kits].forEach((c) => { if (dist2d(c, at(0, -4)) < 3) c.x += 6; });   // (solid cats could push the kit aside, R58)
           placeAt(0, -4);
           const e = enemyInFrontOfPlayer();
           press("KeyF"); step(0.1);
