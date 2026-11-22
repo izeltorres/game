@@ -183,7 +183,7 @@ const PERCH_HEIGHT = 1.6;
 const HUNGER_TIME = 180;           // camp cats eat from the pile about this often (R66)
 const SEASONS = ["newleaf", "greenleaf", "leaf-fall", "leaf-bare"];   // R69
 const SEASON_DAYS = 30;
-const BEETLES_PER_PREY = 4;        // R72
+const BEETLES_PER_PREY = 4;        // R69c
 const DEMOS = { patrol: "sniff", squirrel: "stalk", climb: "look-up", fish: "swipe", rogue: "fight" };   // R58
 const TIPS = {
   patrol: "Tip: the markers glow, and the next one glows brightest.",
@@ -306,7 +306,7 @@ const questDeposited = { marigold: 0, dock: 0 };
 let rogueMates = [];        // the rest of a rogue pack (R62)
 let pileItems = [];         // what is on the fresh-kill pile: { kind, day } (R65)
 let pileDay = 1;
-let leaders = [];           // every clan's leader (R70)
+let leaders = [];           // every clan's leader (R69a)
 let steppingStones = [];    // stepping stones across the water (R59)
 let socialClock = SOCIAL_TIME;   // when camp cats next pair up (R63)
 
@@ -1373,7 +1373,7 @@ function catchPrey(c) {
   } else if (c === squirrel && currentTask() === "squirrel") {
     finishTask("You caught the squirrel! Well stalked.");
   } else if (stage === 2 && role && c.kind === "beetle" && ++stats.beetles % BEETLES_PER_PREY === 0) {
-    // R72: every 4 beetles count as 1 prey
+    // R69c: every 4 beetles count as 1 prey
     stats.hunts++;
     say(`${BEETLES_PER_PREY} beetles make a meal - that counts as prey! (prey caught: ${stats.hunts})`, 2);
     checkPromotion();
@@ -1878,7 +1878,7 @@ function updatePatrol(c, dt) {
   c.stagger = Math.max(0, c.stagger - dt);
 
   if (c.state === "resting") {
-    // R71: limps home and lies down to rest until its medicine cat treats it
+    // R69b: limps home and lies down to rest until its medicine cat treats it
     if (distance(c, c.home) > 4) moveToward(c, c.home, 2, dt);
     else c.moving = false;
     c.restTime = (c.restTime || 0) + dt;
@@ -2118,7 +2118,7 @@ function promote(newRole) {
     return;
   }
   // Leader (R37: nine lives; R9: three clanmates to give orders to)
-  const old = leaders.find((l) => l.clan === clanName);   // R70: the old leader retires to the elders' den
+  const old = leaders.find((l) => l.clan === clanName);   // R69a: the old leader retires to the elders' den
   if (old) old.retired = true;
   if (trainee) {
     // An apprentice still in training finishes as a warrior when its mentor becomes leader
@@ -2702,7 +2702,7 @@ function startGathering() {
   // The other leaders stand around the Great Oak
   gatheringLeaders = otherClans().map((clan, i) => {
     const a = i * 2.1 + 0.6;
-    // R70: the real leaders; any still on the way are already there by the time you arrive
+    // R69a: the real leaders; any still on the way are already there by the time you arrive
     const l = leaders.find((x) => x.clan === clan);
     return Object.assign(l, gatheringSpotFor(clan), { heading: a + Math.PI, moving: false });
   });
@@ -2964,7 +2964,7 @@ function updateMedicineCats(dt) {
         continue;
       }
     }
-    // R71: a rival clan's medicine cat treats its own beaten cats
+    // R69b: a rival clan's medicine cat treats its own beaten cats
     if (m.clan !== clanName) {
       if (m.patient && m.patient.state !== "resting") m.patient = null;
       if (!m.patient) m.patient = patrols.find((p) => p.clan === m.clan && p.state === "resting" && p.restTime >= 3) || null;
@@ -3067,7 +3067,7 @@ function gatheringSpotFor(clan) {
   return { x: GATHERING_SPOT.x + Math.sin(a) * 5, z: GATHERING_SPOT.z + Math.cos(a) * 5 };
 }
 
-// R70: leaders stand by their Highrock; rival leaders walk to the Great Oak when a Gathering is called
+// R69a: leaders stand by their Highrock; rival leaders walk to the Great Oak when a Gathering is called
 function updateLeaders(dt) {
   for (const l of leaders) {
     if (l.retired) continue;
@@ -3077,7 +3077,7 @@ function updateLeaders(dt) {
   }
 }
 
-// R70: every clan's leader, standing by its Highrock
+// R69a: every clan's leader, standing by its Highrock
 function buildLeaders() {
   return Object.keys(CLANS).map((clan) => {
     const spot = spotFor(clan, 4, -13);

@@ -2,7 +2,7 @@ spec.md
 
 # spec: warrior cats inspired themed game
 
-Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34), Round 5 requirements R47–R57 and Round 6 requirements R58–R69, plus R70–R72 settled by the owner after Round 5).
+Based on `problem.md` (Initial requirements R1–R5, Round 1 requirements R6–R11, Round 2 requirements R12–R20, Round 3 requirements R21–R29, Round 4 requirements R30–R46 (there is no R33 or R34), Round 5 requirements R47–R57, Round 6 requirements R58–R69, plus R69a–R69c settled by the owner after Round 5, and Round 7 requirements R70–R77).
 
 ## Purpose
 A rbg game that allows you play as a 3rd perspective account.
@@ -503,7 +503,7 @@ controls list is in the Esc menu.
 
 ## Round 6
 
-R58–R69 come from `problem.md`. R70–R72 are the owner's answers given after Round 5 (in `decision.md`),
+R58–R69 come from `problem.md`. R69a–R69c are the owner's answers given after Round 5 (in `decision.md`),
 numbered here so they can be tested.
 
 ### R58. The mentor is a physical cat
@@ -607,17 +607,93 @@ All sounds are made in the browser (Web Audio), with no sound files, in a new fi
   | Leaf-fall | Orange and brown leaves | Normal | More rain and wind |
   | Leaf-bare | Bare branches and snow on the ground | Only half the prey comes out (as in rain) | No storms; more fog and wind |
 
-### R70. Leaders are visible
+### R69a. Leaders are visible
 - Every clan's leader lives in its camp and stands by the Highrock, including your own clan's leader
   until you become leader.
 - Your clan leader gives the warrior naming ceremony (R40), by name.
 - When you become leader, the old leader retires (it goes to live with the elders and is no longer shown).
 - At a Gathering (R48) the other clans' leaders go to the Great Oak.
 
-### R71. Rival medicine cats look after their own clan
+### R69b. Rival medicine cats look after their own clan
 - When one of their cats is beaten and lies resting in its camp, their medicine cat walks over and
   treats it. It gets up much sooner than the 30 seconds it would take alone.
 - Resting cats are shown lying in their camp.
 
-### R72. Beetles count a little as prey
+### R69c. Beetles count a little as prey
 - After choosing a role, every 4 beetles you catch count as 1 prey toward promotions.
+
+## Round 7
+
+R70–R77 come from `problem.md`, with the owner's answers to the questions asked at the start of the
+round. The three items settled after Round 5 were renumbered R69a–R69c (they were R70–R72) so the
+numbers don't clash.
+
+### R70. Nametags for important cats
+- A small nametag floats over the head of each important cat:
+  - your mentor, while you are an apprentice;
+  - your apprentice, while you are deputy;
+  - every clan's leader;
+  - every clan's medicine cat.
+- Tags only show for cats within 25 units, so the screen doesn't fill up with names.
+- There is no deputy cat to tag (only you can be deputy).
+
+### R71. Curling up to sleep
+- Pressing E in your own den starts a sleep: your cat curls up in its nest (nose to tail) for
+  3 seconds, and you can't move. Then you wake up the next morning with full health (as in R20).
+- An enemy attacking still stops you from resting (R20).
+
+### R72. Markers are highlights, not poles (changes R67)
+- The scent posts are gone. Each border marker is a glowing highlight on the ground: a bright ring
+  and a soft glowing patch.
+- The next marker on a patrol still glows brightest and pulses; the HUD and the map still point to it.
+
+### R73. Branches to rest on
+- Oaks and willows have branches sticking out of the trunk, at different heights. Every tree you can
+  climb has at least one branch low enough for every clan to reach (2 units or lower); ThunderClan
+  can also reach higher ones.
+- While climbing, at the height of a branch, press E to step out onto it. Your cat lies along the
+  branch.
+- On a branch you count as up in the tree: rogues and other clans' cats can't reach you (R64), and
+  from a branch more than 3 units up you can look out over the territory (R64).
+- Press E again (or S) to go back to the trunk, or Space to jump down.
+
+### R74. A winding river
+- The big river bends in gentle S-curves: its middle moves up to 5 units either way from where it was
+  (x = 33), one full bend every 80 units of z. It is still 6 units wide, with shallows, banks, stepping
+  stones, lily pads and reeds following the bends.
+- The stream stays straight, and the clan borders don't change.
+- Everything that uses the water follows the bends: swimming, wading and the current, fishing, prey
+  that can't swim, the map, grass, and the river sound.
+
+### R75. Call a patrol for help
+- When a rogue pack (R62) is attacking you, press **V** to call for help, at any rank.
+- A patrol of 3 of your clan's warriors (camp cats who aren't hurt, and not your mentor) runs out of
+  camp to you and fights the rogues: each warrior swipes a nearby rogue for 8 damage about every
+  1.2 seconds.
+- When the pack flees (or after a minute), the patrol walks back to camp.
+- You can call again 60 seconds after a call. Calling when no pack is attacking you does nothing but
+  say so.
+- Rogues beaten while the patrol helps still count as your fight won.
+
+### R76. Less rain, with two rainy seasons
+- **Newleaf** and **leaf-fall** are the rainy seasons. **Greenleaf** is dry: it never just rains, only
+  the occasional thunderstorm. **Leaf-bare** has no rain (it snows, R69).
+- Rain and thunderstorms last half as long as other weather (2 minutes instead of 4).
+- Together this makes it rain much less over a year than in Round 6.
+
+  | Season | Weather mix (out of 12 picks) |
+  | --- | --- |
+  | Newleaf | clear 4, rain 3, fog 2, wind 2, storm 1 |
+  | Greenleaf | clear 7, fog 1, wind 3, storm 1 |
+  | Leaf-fall | clear 3, rain 4, fog 1, wind 3, storm 1 |
+  | Leaf-bare | clear 4, fog 4, wind 4 |
+
+### R77. Tougher rogue packs that come less often (changes R62)
+- Pack rogues are tougher: the pack leader has 130 health (was 90), the others 80 (was 60).
+- After a pack is chased off, the next one comes after 40 seconds instead of 20 (half as often).
+- Everything else in R62 stays: beating the leader makes the whole pack flee, and they still roam,
+  hunt you and raid the camp.
+
+### Controls (Round 7)
+- **V:** call a patrol of your clan's warriors to help against a rogue pack (R75).
+- **E** while climbing at a branch: step onto the branch, or back to the trunk (R73).

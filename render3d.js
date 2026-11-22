@@ -1367,7 +1367,7 @@ function updateCats(t) {
     const model = view.patrolModels[i];
     if (!model) return;
     if (c.state === "resting") {
-      // R71: a beaten cat lies resting in its camp until its medicine cat treats it
+      // R69b: a beaten cat lies resting in its camp until its medicine cat treats it
       poseCat(model, { x: c.x, y: 0, z: c.z, heading: c.heading, size: 0.95, moving: c.moving, walk: c.walk, lying: !c.moving, hurt: true, limp: c.moving }, t);
       model.visible = playing;
       return;
@@ -1594,7 +1594,7 @@ function updateRound5View(t) {
     poseFighter(view.raiderModels[i], r, 0.95, t);
     view.raiderModels[i].visible = playing;
   });
-  // R70: every clan's leader is always there (by its Highrock, or at the Great Oak for a Gathering)
+  // R69a: every clan's leader is always there (by its Highrock, or at the Great Oak for a Gathering)
   const showLeaders = leaders.filter((l) => !l.retired);
   view.leaderModels = syncCatModels(view.leaderModels, showLeaders);
   showLeaders.forEach((l, i) => {

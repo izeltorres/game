@@ -2459,33 +2459,33 @@
           return snowy && !view.snow.visible;
         });
 
-        // ---------- R70 leaders are visible ----------
+        // ---------- R69a leaders are visible ----------
         freshWithRole("Warrior", "WindClan");
-        check("R70", "every clan's leader stands by its Highrock", () =>
+        check("R69a", "every clan's leader stands by its Highrock", () =>
           Object.keys(CLANS).every((c) => {
             const l = leaders.find((x) => x.clan === c);
             const rock = rocks.find((r) => r.kind === "highrock" && r.clan === c);
             return l && !l.retired && dist2d(l, rock) < 6 && l.name.endsWith("star");
           }));
-        check("R70", "your clan leader gives the warrior ceremony by name", () => {
+        check("R69a", "your clan leader gives the warrior ceremony by name", () => {
           freshAtRoleChoice("WindClan"); chooseRole("Warrior");
           return lastMessage.includes(CLAN_LEADER_NAMES.WindClan);
         });
-        check("R70", "when you become leader, the old leader retires", () => {
+        check("R69a", "when you become leader, the old leader retires", () => {
           promote("Deputy"); promote("Leader");
           return leaders.find((x) => x.clan === clanName).retired === true;
         });
-        check("R70", "at a Gathering the other leaders are at the Great Oak", () => {
+        check("R69a", "at a Gathering the other leaders are at the Great Oak", () => {
           gatheringTimer = 0.05; step(0.2); place(2, 3); step(0.2);
           const at = leaders.filter((l) => l.clan !== clanName && dist2d(l, GATHERING_SPOT) < 10).length;
           chooseOption(0);
           return at === 3;
         });
-        check("R70", "the leaders are drawn", () => { renderFrame(); return view.leaderModels.length === leaders.filter((l) => !l.retired).length; });
+        check("R69a", "the leaders are drawn", () => { renderFrame(); return view.leaderModels.length === leaders.filter((l) => !l.retired).length; });
 
-        // ---------- R71 rival medicine cats ----------
+        // ---------- R69b rival medicine cats ----------
         freshWithRole("Warrior", "WindClan"); quiet();
-        check("R71", "a beaten rival cat lies resting in its camp, and their medicine cat treats it soon", () => {
+        check("R69b", "a beaten rival cat lies resting in its camp, and their medicine cat treats it soon", () => {
           const c = patrols.find((p) => p.clan === "ShadowClan" && p.mode === "camp");
           Object.assign(c, { state: "fleeing", fleeTimer: 0.1 });
           place(30, 30);
@@ -2496,8 +2496,8 @@
           return resting && c.state === "patrol" && t < 20;
         });
 
-        // ---------- R72 beetles count a little ----------
-        check("R72", "after choosing a role, 4 beetles count as 1 prey", () => {
+        // ---------- R69c beetles count a little ----------
+        check("R69c", "after choosing a role, 4 beetles count as 1 prey", () => {
           freshWithRole("Warrior"); placeAt(0, -30);
           for (let i = 0; i < 3; i++) { quiet(); addPrey("beetle", at(0, -28.8)); step(1 / 60); pressE(); }
           const afterThree = stats.hunts;
