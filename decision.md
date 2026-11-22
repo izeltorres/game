@@ -77,3 +77,18 @@
 - Rival clans' medicine cats should take care of their own clan.
 - Hut lighting is fine as it is (no change).
 - Beetles do count as prey, but only a small amount.
+
+## Session 7 (2026-11-22) - Round 6
+
+- Build Round 6 (R58–R69 in `problem.md`), plus the three settled items from after Round 5
+  (numbered R70–R72 in `spec.md`).
+- R70–R72: leaders are visible, rival medicine cats treat their own clan, and 4 beetles = 1 prey.
+- R58: the mentor has a solid body, shows you how to do each task, and you can talk to them.
+- R61: all sound is synthesized (no sound files).
+- R62: rogues come in packs, are stronger and smarter, roam and hunt you, and steal and hurt in camp.
+- R63: share tongues, play with kits, and camp cats interact with each other.
+- R64: climbing lets you see further, escape danger, catch prey in trees, and is a mentor task.
+- R69: seasons change every 30 game days.
+- R59: the river gets flowing water, banks and stones, depth, and life in the river.
+- R60: textures for ground, trees and rocks, cat fur, and huts and water.
+- R65, R67, R68: the proposed defaults for the pile, markers and trees.
