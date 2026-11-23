@@ -1,4 +1,4 @@
-# problem
+# Problem
 There aren't many games based on books.
 
 ## Initial requirements
@@ -8,7 +8,7 @@ R3 - start at a level one; apprentice
 R4 - must be given tasks to complete
 R5 - as you do complete certain obsicoles, you then get to choose between roles (warrior, leader, medicine cat)
 
-## Round 1
+## Round 1 Requirements
 R6 - Make it so there is a difference with cat attributes depending on what clan you choose.
 --ThunderClan: can climb trees
 --RiverClan; faster swimmers, easier to fish
@@ -20,7 +20,7 @@ R9- Once a kit levels up it become a appretince the players gets to choose betwe
 R10- day system, 1 hour is day (include sunsets)
 R11- Camera and movemnt is low and close, as if it were from the cats perspective. Make it so its from behind the cat.
 
-## Round 2
+## Round 2 Requirements
 R12- Make sure the turn button aren't as choppy, more smooth
 R13- Make it so kits can hunt easy prey; such as bugs and smaller mammals, and so hunting isn't as hardd towrds the beginning
 R14-Make it so you can 'hunt by scent' 
@@ -31,7 +31,7 @@ R18-You can collect herbs and keep in a storage that opens when you press a butt
 R19-When you are an apprentice you pick a cat to teach you skills
 R20-Make a homebase
 
-## Round 3
+## Round 3 Requirements
 R21-fix the main page, make the name Cat Clans, add more pattern options and make sure they work in 3D.
 R22-Take away the name of youself and what clan you are in at the second screen so there isn't as many words blocking the view.
 R23-Dont' let the cats phase right through rocks and trres
@@ -42,7 +42,7 @@ R27-allow for the cat to drop the fresh kill, add animation while cat is carryin
 R28-make it so the cats tail follow what a cat normally does
 R29-have other camps have cats living in them
 
-## Round 4
+## Round 4 Requirements
 R30-Make there be weather, and prey be affected by it.
 R31-Make there be more kits around
 R32- allow for camera angle to be angled up and down
@@ -62,7 +62,7 @@ R45- to level up specifically; kit gets bugs and smaller animals until they reac
 -- leader's name ends with -star
 R46-add more animations
 
-## Round 5
+## Round 5 Requirements
 R47- allow prey of different sizes, when you are a leader you can order to hunt a bigger prey for the clan
 R48- when you are leader you meet up with other clans
 R49-as a deputy you are sent on missions outside your territory
@@ -75,7 +75,7 @@ R55-make the playscreen bigger
 R56-make it easier for the kits to hunt
 R57-medicine path can have more tasks; such as collecting
 
-## Round 6
+## Round 6 Requirements
 R58-make the mentor cat be a physical cat
 R59-Make the river more realistic
 R60-add more textures
@@ -89,7 +89,7 @@ R67-make the markers more obvious
 R68-make the natural movements of the tree less and have falling leaves
 R69-add changing seasons
 
-## Round 7
+## Round 7 Requirements
 R70-make all the important cats have small nametags
 R71-when sleeping allow cat to curl up
 R72-dont make there be the poles on the markers, just the highlights (chnages R67)
@@ -99,7 +99,7 @@ R75-when rogue packs attack you can call to your pack to help you
 R76-make it rain less, make more during raniy season
 R77-make it harder to get rid of rogue cats but do not make them as oftern(change to R62)
 
-## Round 8
+## Round 8 Requirements
 R78-allow for change of territories
 R79-dont allow rogues on base camp
 R80- make it so the medicine cat is inside the medicine hut
