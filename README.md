@@ -8,7 +8,14 @@ patrols on their land.
 ## How to play
 
 1. Open `index.html` in a web browser. You don't need to install anything, but you need an internet
-   connection the first time so the free Three.js 3D library can load.
+   connection the first time so the free Three.js 3D library can load. From a terminal in the
+   repository folder:
+
+   ```
+   start index.html        # Windows
+   open index.html         # macOS
+   xdg-open index.html     # Linux
+   ```
 2. Make your cat: type a name, then pick its fur colour, eye colour, pattern (Solid, Tabby, Patches, Tuxedo,
    Calico, Spotted or Colorpoint) and clan.
 3. Press **Start**. Saved cats are listed under Start: press **Continue** to carry on (up to 3 saved cats; Delete removes one).
@@ -148,6 +155,21 @@ The world is split into 4 clan territories. Press **M** to see the map.
 | RiverClan | Swimmers and fishers | Swim fast, bigger fishing zone |
 | WindClan | Fast runners | Fastest walking and running |
 | ShadowClan | Mysterious | Live in the foggy pine marsh. Strike harder in a fight |
+
+## Running the tests
+
+The automatic tests are in `tests.html`. It loads the game, plays through it and lists PASS or FAIL for
+every check (each named with its requirement ID), with a total at the top. From a terminal in the
+repository folder:
+
+```
+start tests.html        # Windows
+open tests.html         # macOS
+xdg-open tests.html     # Linux
+```
+
+To run them without a window (Windows, Git Bash, with Microsoft Edge), see the command under Testing in
+`CLAUDE.md`. It prints the summary line and any failing checks.
 
 ## Files
 
