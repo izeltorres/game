@@ -33,6 +33,10 @@ The game is called **Cat Clans**. The name is `GAME_NAME` in `game.js`; the page
   rocks and huts. Changing their `x`/`z` directly lets them walk through walls or get stuck.
 - The big river bends (R74). Find water with `watersAt(z)`, `inRiver(x, z)`, `nearRiver(x, z)` and
   `waterDepthAt(x, z)`; never compare with `RIVER_X0`/`RIVER_X1` directly (they are the edges at z = 0 only).
+- Territories can move (R78). Use `territoryAt()` for who owns a place and `biomeAt()` for how it looks;
+  never decide ownership from the sign of x and z.
+- Progress is saved with `saveData()` / `loadData()` (R84). Any new kind of progress must be added to both,
+  as plain data (no object references).
 - No image or sound files: textures are drawn on a canvas and sounds are made with Web Audio, because
   browsers block image files for WebGL when the page is opened from `file://`.
 - Never undo or amend a commit. Commit in small steps with messages that say what changed and why.
@@ -74,6 +78,11 @@ Test after a change.
   A full run takes about 15–20 minutes, longer than a foreground command may run, so run it in the background
   (timeout 1 800 000 ms or more) and wait for it to finish. Two or three runs can go at the same time if each
   uses its own `--user-data-dir` folder.
+- The test script is one block: a syntax error in it (for example a name declared twice) means no check runs,
+  and the page stays at "Running tests...". Before a full run, check for duplicate top-level names with
+  `grep -oE "^        (const|let) [A-Za-z_]+" tests.html | sort | uniq -d` (it should print nothing).
+- Checks that save must use the test page's own storage: clear `SAVE_KEY` and set `currentSlot = null` first,
+  so the player's real saves are never touched.
 - Requirement IDs come from `problem.md`. If the owner's numbers clash with IDs already in `spec.md` or the
   tests, ask the owner how to renumber before writing the spec.
 - Things happen on their own during long checks (rogue packs roam and attack, camp cats eat from the pile
